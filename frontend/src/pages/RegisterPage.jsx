@@ -1,29 +1,37 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MessageSquare, User, Mail, Lock, Eye, EyeOff, BadgeCheck } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', email: '', password: '', confirm: '' });
+
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirm: '',
+  });
+
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isEmployee = form.username.includes('-webcare');
-
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (form.password !== form.confirm) {
-      // Use a simple alert here since we can't use hook outside of context easily
       alert('Password tidak cocok.');
       return;
     }
+
     if (form.password.length < 6) {
       alert('Password minimal 6 karakter.');
       return;
     }
+
     setLoading(true);
+
     setTimeout(() => {
       const success = register(form.username, form.email, form.password);
       if (success) navigate('/login');
@@ -32,173 +40,374 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #7c3aed 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 16, padding: '40px 36px',
-        width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 14,
-            background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 14px',
-          }}>
-            <MessageSquare size={26} color="#fff" />
+    <>
+      <style>{`
+        * {
+          box-sizing: border-box;
+        }
+
+        .auth-page {
+          min-height: 100vh;
+          display: flex;
+          font-family: 'Poppins', 'Segoe UI', sans-serif;
+          background: #f5f5f5;
+        }
+
+        .auth-left {
+          flex: 1.55;
+          background: linear-gradient(180deg, #1783ee 0%, #0a2ea5 100%);
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 48px;
+        }
+
+        .auth-left::before,
+        .auth-left::after {
+          content: "";
+          position: absolute;
+          border: 1.5px solid rgba(79, 177, 255, 0.55);
+          border-radius: 50%;
+          left: -180px;
+          bottom: -180px;
+        }
+
+        .auth-left::before {
+          width: 520px;
+          height: 520px;
+        }
+
+        .auth-left::after {
+          width: 700px;
+          height: 700px;
+          left: -280px;
+          bottom: -290px;
+        }
+
+        .auth-brand {
+          position: relative;
+          z-index: 2;
+          width: 100%;
+          max-width: 460px;
+          color: white;
+          text-align: left;
+        }
+
+        .auth-brand h1 {
+          margin: 0 0 12px;
+          font-size: 58px;
+          font-weight: 700;
+          letter-spacing: -1px;
+        }
+
+        .auth-brand p {
+          margin: 0 0 28px;
+          font-size: 22px;
+          line-height: 1.5;
+          color: rgba(255, 255, 255, 0.92);
+        }
+
+        .brand-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 54px;
+          min-width: 150px;
+          padding: 0 28px;
+          border: none;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #1d8fff, #0f6fe8);
+          color: white;
+          font-size: 20px;
+          font-weight: 500;
+          cursor: pointer;
+        }
+
+        .auth-right {
+          flex: 1;
+          background: #f7f7f7;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 48px;
+        }
+
+        .auth-form-wrap {
+          width: 100%;
+          max-width: 420px;
+        }
+
+        .auth-title {
+          margin: 0;
+          font-size: 38px;
+          font-weight: 700;
+          color: #2f2f2f;
+        }
+
+        .auth-subtitle {
+          margin: 8px 0 38px;
+          font-size: 20px;
+          color: #444;
+        }
+
+        .auth-form {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+
+        .field-wrap {
+          position: relative;
+        }
+
+        .field-icon {
+          position: absolute;
+          top: 50%;
+          left: 24px;
+          transform: translateY(-50%);
+          color: #b8b8b8;
+        }
+
+        .field-input {
+          width: 100%;
+          height: 50px;
+          border: 1.5px solid #ececec;
+          background: transparent;
+          border-radius: 999px;
+          outline: none;
+          padding: 0 58px 0 64px;
+          font-size: 15px;
+          color: #2f2f2f;
+          transition: 0.2s ease;
+        }
+
+        .field-input::placeholder {
+          color: #c4c4c4;
+        }
+
+        .field-input:focus {
+          border-color: #1783ee;
+          background: #fff;
+        }
+
+        .pass-toggle {
+          position: absolute;
+          top: 50%;
+          right: 22px;
+          transform: translateY(-50%);
+          border: none;
+          background: transparent;
+          color: #b8b8b8;
+          cursor: pointer;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .submit-btn {
+          width: 100%;
+          height: 50px;
+          border: none;
+          border-radius: 999px;
+          background: #1783ee;
+          color: white;
+          font-size: 15px;
+          font-weight: 500;
+          cursor: pointer;
+          margin-top: 8px;
+          transition: 0.2s ease;
+        }
+
+        .submit-btn:hover {
+          opacity: 0.95;
+        }
+
+        .submit-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .switch-auth {
+          margin-top: 24px;
+          text-align: center;
+          font-size: 15px;
+          color: #666;
+        }
+
+        .switch-auth a {
+          color: #1783ee;
+          text-decoration: none;
+          font-weight: 600;
+        }
+
+        .helper-text {
+          font-size: 13px;
+          color: #8a8a8a;
+          margin-top: -6px;
+          margin-left: 6px;
+        }
+
+        .error-text {
+          font-size: 13px;
+          color: #ef4444;
+          margin-top: -6px;
+          margin-left: 6px;
+        }
+
+        @media (max-width: 1024px) {
+          .auth-brand h1 {
+            font-size: 46px;
+          }
+
+          .auth-brand p {
+            font-size: 18px;
+          }
+
+          .auth-title {
+            font-size: 32px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .auth-page {
+            flex-direction: column;
+          }
+
+          .auth-left {
+            min-height: 280px;
+            flex: unset;
+          }
+
+          .auth-brand {
+            text-align: center;
+          }
+
+          .auth-brand h1 {
+            font-size: 40px;
+          }
+
+          .auth-brand p {
+            font-size: 16px;
+          }
+
+          .auth-right {
+            padding: 32px 20px 40px;
+          }
+
+          .auth-title {
+            font-size: 28px;
+          }
+
+          .auth-subtitle {
+            font-size: 16px;
+            margin-bottom: 28px;
+          }
+
+          .field-input,
+          .submit-btn {
+            height: 58px;
+            font-size: 16px;
+          }
+        }
+      `}</style>
+
+      <div className="auth-page">
+        <div className="auth-left">
+          <div className="auth-brand">
+            <h1>WebcareChat</h1>
+            <p>Masuk ke room chat client dengan sistem link, login, dan role yang jelas.</p>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937', marginBottom: 4 }}>
-            Buat Akun Baru
-          </h1>
-          <p style={{ color: '#6B7280', fontSize: 14 }}>Bergabung dengan WebcareChat</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Username */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-              Username
-            </label>
-            <div style={{ position: 'relative' }}>
-              <User size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', zIndex: 1 }} />
-              <input
-                type="text" required
-                value={form.username}
-                onChange={e => setForm({ ...form, username: e.target.value })}
-                placeholder="contoh: john atau john-webcare"
-                style={{
-                  width: '100%',
-                  padding: isEmployee ? '10px 100px 10px 38px' : '10px 12px 10px 38px',
-                  border: `1.5px solid ${isEmployee ? '#93c5fd' : '#E5E7EB'}`,
-                  borderRadius: 8, fontSize: 14, outline: 'none',
-                  color: '#1F2937', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s, background 0.2s',
-                  background: isEmployee ? '#eff6ff' : '#fff',
-                }}
-                onFocus={e => { if (!isEmployee) e.target.style.borderColor = '#2563EB'; }}
-                onBlur={e => { if (!isEmployee) e.target.style.borderColor = '#E5E7EB'; }}
-              />
-              {isEmployee && (
-                <span style={{
-                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  background: '#dbeafe', color: '#1d4ed8',
-                  fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 99,
-                  pointerEvents: 'none',
-                }}>
-                  <BadgeCheck size={12} /> Staff Account
-                </span>
+        <div className="auth-right">
+          <div className="auth-form-wrap">
+            <h2 className="auth-title">Hello!</h2>
+            <p className="auth-subtitle">Sign Up to Get Started</p>
+
+            <form className="auth-form" onSubmit={handleSubmit}>
+              <div className="field-wrap">
+                <User size={22} className="field-icon" />
+                <input
+                  className="field-input"
+                  type="text"
+                  required
+                  placeholder="Full Name"
+                  value={form.username}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                />
+              </div>
+
+              <div className="field-wrap">
+                <Mail size={22} className="field-icon" />
+                <input
+                  className="field-input"
+                  type="email"
+                  required
+                  placeholder="Email Address"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+
+              <div className="field-wrap">
+                <Lock size={22} className="field-icon" />
+                <input
+                  className="field-input"
+                  type={showPass ? 'text' : 'password'}
+                  required
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="pass-toggle"
+                  onClick={() => setShowPass(!showPass)}
+                >
+                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+
+              <div className="field-wrap">
+                <Lock size={22} className="field-icon" />
+                <input
+                  className="field-input"
+                  type={showPass ? 'text' : 'password'}
+                  required
+                  placeholder="Confirm Password"
+                  value={form.confirm}
+                  onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+                />
+
+                <button
+                  type="button"
+                  className="pass-toggle"
+                  onClick={() => setShowPass(!showPass)}
+                >
+                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+
+              {form.confirm && form.confirm !== form.password && (
+                <div className="error-text">Password tidak cocok</div>
               )}
-            </div>
-            <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-              Tambahkan <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 4 }}>-webcare</code> untuk akun karyawan
-            </p>
-          </div>
 
-          {/* Email */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-              Email
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-              <input
-                type="email" required
-                value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                placeholder="nama@email.com"
-                style={{
-                  width: '100%', padding: '10px 12px 10px 38px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                  outline: 'none', color: '#1F2937', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-            </div>
-          </div>
+              <div className="helper-text">Password minimal 6 karakter</div>
 
-          {/* Password */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-              <input
-                type={showPass ? 'text' : 'password'} required
-                value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Minimal 6 karakter"
-                style={{
-                  width: '100%', padding: '10px 40px 10px 38px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                  outline: 'none', color: '#1F2937', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-              <button type="button" onClick={() => setShowPass(!showPass)} style={{
-                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', padding: 0, color: '#9CA3AF', cursor: 'pointer',
-              }}>
-                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? 'Loading...' : 'Register'}
               </button>
+            </form>
+
+            <div className="switch-auth">
+              Sudah punya akun? <Link to="/login">Login</Link>
             </div>
           </div>
-
-          {/* Confirm Password */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-              Konfirmasi Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-              <input
-                type={showPass ? 'text' : 'password'} required
-                value={form.confirm}
-                onChange={e => setForm({ ...form, confirm: e.target.value })}
-                placeholder="Ulangi password"
-                style={{
-                  width: '100%', padding: '10px 12px 10px 38px',
-                  border: `1.5px solid ${form.confirm && form.confirm !== form.password ? '#fca5a5' : '#E5E7EB'}`,
-                  borderRadius: 8, fontSize: 14, outline: 'none',
-                  color: '#1F2937', boxSizing: 'border-box', transition: 'border-color 0.2s',
-                }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = form.confirm && form.confirm !== form.password ? '#fca5a5' : '#E5E7EB'}
-              />
-            </div>
-            {form.confirm && form.confirm !== form.password && (
-              <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Password tidak cocok</p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '11px', borderRadius: 8, border: 'none',
-              background: loading ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-              color: '#fff', fontWeight: 600, fontSize: 14, marginTop: 4,
-              cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {loading ? 'Memproses...' : 'Daftar'}
-          </button>
-        </form>
-
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: '#6B7280' }}>
-          Sudah punya akun?{' '}
-          <Link to="/login" style={{ color: '#2563EB', fontWeight: 600 }}>Masuk di sini</Link>
-        </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

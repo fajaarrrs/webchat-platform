@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { Users, Link2, MessageSquare, TrendingUp, Activity, ArrowUpRight } from 'lucide-react';
+import { api } from '../../api';
 
 const statCards = [
   { label: 'Total Users',    value: '24',  sub: '+3 bulan ini',  icon: Users,        color: '#2563EB', bg: '#eff6ff' },

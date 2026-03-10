@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 
@@ -25,6 +26,7 @@ const io = new Server(server, {
 // Middleware
 app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Init DB (creates tables + seeds admin)
 initDatabase();
@@ -70,7 +72,7 @@ io.on('connection', (socket) => {
   });
 
   // Send a message
-  socket.on('send_message', ({ forumId, content }) => {
+  socket.on('send_message', ({ forumId, content, replyToId }) => {
     const fid = parseInt(forumId);
     if (!content?.trim()) return;
 
@@ -82,20 +84,52 @@ io.on('connection', (socket) => {
     if (!allowed) return;
 
     // Persist to DB
+    const replyId = replyToId ? parseInt(replyToId) : null;
     const result = db.prepare(
-      'INSERT INTO messages (forum_id, user_id, content) VALUES (?, ?, ?)'
-    ).run(fid, socket.user.id, content.trim());
+      'INSERT INTO messages (forum_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?)'
+    ).run(fid, socket.user.id, content.trim(), replyId);
 
     const message = db.prepare(`
-      SELECT m.id, m.content, m.created_at,
-             u.id as user_id, u.username, u.role
+      SELECT m.id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
+             m.file_url, m.file_name, m.file_size, m.file_type,
+             u.id as user_id, u.username, u.role,
+             rm.content as reply_content, ru.username as reply_username
       FROM messages m
       JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages rm ON m.reply_to_id = rm.id
+      LEFT JOIN users ru ON rm.user_id = ru.id
       WHERE m.id = ?
     `).get(result.lastInsertRowid);
 
     // Broadcast to everyone in the room (including sender)
     io.to(`forum:${fid}`).emit('new_message', message);
+  });
+
+  // Delete a message
+  socket.on('delete_message', ({ messageId, forumId }) => {
+    const mid = parseInt(messageId);
+    const fid = parseInt(forumId);
+    const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(mid);
+    if (!msg || msg.forum_id !== fid) return;
+
+    // Only owner or admin can delete
+    if (socket.user.role !== 'admin' && msg.user_id !== socket.user.id) return;
+
+    db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
+    io.to(`forum:${fid}`).emit('message_deleted', { messageId: mid, forumId: fid });
+  });
+
+  // Pin / unpin a message (admin only)
+  socket.on('pin_message', ({ messageId, forumId }) => {
+    if (socket.user.role !== 'admin') return;
+    const mid = parseInt(messageId);
+    const fid = parseInt(forumId);
+    const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(mid);
+    if (!msg || msg.forum_id !== fid) return;
+
+    const newPinState = msg.is_pinned ? 0 : 1;
+    db.prepare('UPDATE messages SET is_pinned = ? WHERE id = ?').run(newPinState, mid);
+    io.to(`forum:${fid}`).emit('message_pinned', { messageId: mid, forumId: fid, is_pinned: newPinState });
   });
 
   socket.on('disconnect', () => {

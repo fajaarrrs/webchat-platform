@@ -5,6 +5,7 @@ import ToastContainer from './components/ToastContainer';
 
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import JoinPage from './pages/JoinPage';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -31,6 +32,13 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
+
+          {/* Join forum via link — requires login (ProtectedRoute handles redirect) */}
+          <Route path="/chat/join/:token" element={
+            <ProtectedRoute allowedRoles={['admin', 'karyawan', 'client']}>
+              <JoinPage />
+            </ProtectedRoute>
+          } />
 
           {/* Admin routes */}
           <Route path="/admin/dashboard" element={

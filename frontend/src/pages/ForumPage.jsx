@@ -1,87 +1,73 @@
-import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
-import { MessagesSquare, Plus, Search, MessageSquare, X, Users, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { MessagesSquare, Search, MessageSquare, Users, Clock, Link2, UserPlus, X } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { api } from '../api';
 
-const initialForums = [
-  {
-    id: 'f-001', title: 'Support Umum', category: 'Support',
-    desc: 'Forum untuk pertanyaan umum seputar layanan kami. Tim siap membantu!',
-    author: 'admin', participants: 24, messages: 87,
-    created: '01 Mar 2026', lastActivity: '10 menit lalu', link: '/chat/join/abc123',
-    color: '#2563EB', bg: '#eff6ff',
-  },
-  {
-    id: 'f-002', title: 'Project Alpha', category: 'Project',
-    desc: 'Diskusi dan koordinasi tim untuk Project Alpha. Semua update ada di sini.',
-    author: 'admin', participants: 8, messages: 142,
-    created: '03 Mar 2026', lastActivity: '1 jam lalu', link: '/chat/join/def456',
-    color: '#7c3aed', bg: '#f5f3ff',
-  },
-  {
-    id: 'f-003', title: 'Billing & Pembayaran', category: 'Finance',
-    desc: 'Pertanyaan seputar tagihan, pembayaran, dan refund.',
-    author: 'admin', participants: 12, messages: 34,
-    created: '06 Mar 2026', lastActivity: '3 jam lalu', link: '/chat/join/ghi789',
-    color: '#059669', bg: '#ecfdf5',
-  },
-  {
-    id: 'f-004', title: 'Pengumuman Platform', category: 'Announcement',
-    desc: 'Info terbaru seputar pembaruan fitur dan pengumuman penting.',
-    author: 'admin', participants: 30, messages: 15,
-    created: '07 Mar 2026', lastActivity: '2 hari lalu', link: '/chat/join/jkl012',
-    color: '#d97706', bg: '#fffbeb',
-  },
-];
+const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
 
-const categoryColor = {
-  Support:      { bg: '#eff6ff', color: '#2563EB' },
-  Project:      { bg: '#f5f3ff', color: '#7c3aed' },
-  Finance:      { bg: '#ecfdf5', color: '#059669' },
-  Announcement: { bg: '#fffbeb', color: '#d97706' },
-};
-
-export default function ForumPage({ role = 'admin' }) {
+export default function ForumPage() {
   const { user, addToast } = useAuth();
   const navigate = useNavigate();
-  const [forums, setForums] = useState(initialForums);
+  const [forums, setForums] = useState([]);
   const [search, setSearch] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [newForm, setNewForm] = useState({ title: '', desc: '', category: 'Support' });
+  const [loading, setLoading] = useState(true);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinLink, setJoinLink] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
 
-  const isAdmin = user?.role === 'admin';
+  useEffect(() => {
+    api.get('/forums')
+      .then(data => setForums(data))
+      .catch(err => addToast(err.message, 'error'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleCreateForum = (e) => {
-    e.preventDefault();
-    const token = Math.random().toString(36).slice(2, 9);
-    const newForum = {
-      id: `f-${Date.now()}`,
-      title: newForm.title,
-      desc: newForm.desc,
-      category: newForm.category,
-      author: user?.username,
-      participants: 1, messages: 0,
-      created: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-      lastActivity: 'Baru saja',
-      link: `/chat/join/${token}`,
-      color: categoryColor[newForm.category]?.color || '#2563EB',
-      bg: categoryColor[newForm.category]?.bg || '#eff6ff',
-    };
-    setForums(prev => [newForum, ...prev]);
-    setNewForm({ title: '', desc: '', category: 'Support' });
-    setShowCreate(false);
-    addToast(`Forum "${newForum.title}" berhasil dibuat!`, 'success');
+  const handleOpenChat = (forum) => {
+    navigate(`/${user?.role}/chat`, { state: { forumId: forum.id } });
   };
 
-  const handleJoin = (forum) => {
-    addToast(`Bergabung ke forum "${forum.title}"`, 'info');
-    navigate(`/${user?.role}/chat`);
+  const handleJoinForum = async (e) => {
+    e.preventDefault();
+    const raw = joinLink.trim();
+    if (!raw) return;
+    const match = raw.match(/\/chat\/join\/([a-f0-9]+)/);
+    const token = match ? match[1] : raw;
+    setJoinLoading(true);
+    try {
+      const data = await api.post(`/forums/join/${token}`);
+      addToast(`Berhasil bergabung ke forum "${data.title}"`, 'success');
+      const updated = await api.get('/forums');
+      setForums(updated);
+      setShowJoinModal(false);
+      setJoinLink('');
+      navigate(`/${user?.role}/chat`, { state: { forumId: data.forum_id } });
+    } catch (err) {
+      addToast(err.message || 'Link tidak valid.', 'error');
+    }
+    setJoinLoading(false);
+  };
+
+  const formatDate = (dt) => {
+    if (!dt) return 'â€”';
+    return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const formatRelative = (dt) => {
+    if (!dt) return 'â€”';
+    const diff = Date.now() - new Date(dt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Baru saja';
+    if (mins < 60) return `${mins} menit lalu`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} jam lalu`;
+    return `${Math.floor(hours / 24)} hari lalu`;
   };
 
   const filtered = forums.filter(f =>
     f.title.toLowerCase().includes(search.toLowerCase()) ||
-    f.desc.toLowerCase().includes(search.toLowerCase())
+    f.project.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -95,12 +81,14 @@ export default function ForumPage({ role = 'admin' }) {
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Forum</h1>
             </div>
             <p style={{ color: '#6B7280', fontSize: 14 }}>
-              {isAdmin ? 'Buat dan kelola forum diskusi untuk tim dan client.' : 'Pilih forum untuk bergabung ke sesi chat.'}
+              {user?.role === 'admin'
+                ? 'Semua forum chat yang telah dibuat.'
+                : 'Forum yang kamu ikuti. Klik untuk membuka chat.'}
             </p>
           </div>
-          {isAdmin && (
+          {user?.role === 'admin' && (
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => navigate('/admin/create-link')}
               style={{
                 padding: '10px 18px', borderRadius: 8, border: 'none',
                 background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
@@ -108,7 +96,20 @@ export default function ForumPage({ role = 'admin' }) {
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
               }}
             >
-              <Plus size={15} /> Forum Baru
+              <Link2 size={15} /> Buat Forum
+            </button>
+          )}
+          {user?.role !== 'admin' && (
+            <button
+              onClick={() => setShowJoinModal(true)}
+              style={{
+                padding: '10px 18px', borderRadius: 8, border: 'none',
+                background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                color: '#fff', fontWeight: 600, fontSize: 14,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <UserPlus size={15} /> Tambah Forum
             </button>
           )}
         </div>
@@ -118,7 +119,7 @@ export default function ForumPage({ role = 'admin' }) {
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Cari forum..."
+            placeholder="Cari forum atau project..."
             style={{
               width: '100%', padding: '10px 12px 10px 36px',
               border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
@@ -130,16 +131,35 @@ export default function ForumPage({ role = 'admin' }) {
         </div>
 
         {/* Forum Cards */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF', fontSize: 14 }}>Memuat forum...</div>
+        ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF' }}>
             <MessagesSquare size={44} style={{ margin: '0 auto 14px', display: 'block', opacity: 0.3 }} />
-            <p style={{ fontSize: 15, fontWeight: 500 }}>Belum ada forum.</p>
-            {isAdmin && <p style={{ fontSize: 13 }}>Klik "Forum Baru" untuk membuatnya.</p>}
+            <p style={{ fontSize: 15, fontWeight: 500 }}>
+              {search ? 'Tidak ada forum yang cocok.' : 'Belum ada forum yang diikuti.'}
+            </p>
+            {!search && user?.role !== 'admin' && (
+              <>
+                <p style={{ fontSize: 13, marginBottom: 16 }}>Gunakan link dari admin, atau klik tombol di bawah.</p>
+                <button
+                  onClick={() => setShowJoinModal(true)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, border: 'none',
+                    background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                    color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <UserPlus size={14} /> Tambah Forum
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            {filtered.map(forum => {
-              const catStyle = categoryColor[forum.category] || { bg: '#f3f4f6', color: '#6B7280' };
+            {filtered.map((forum, idx) => {
+              const accent = forumColors[idx % forumColors.length];
               return (
                 <div
                   key={forum.id}
@@ -147,38 +167,39 @@ export default function ForumPage({ role = 'admin' }) {
                     background: '#fff', borderRadius: 14, padding: 22,
                     boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
                     cursor: 'pointer', transition: 'all 0.2s',
-                    borderTop: `3px solid ${forum.color}`,
+                    borderTop: `3px solid ${accent}`,
                   }}
                   onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'}
-                  onClick={() => handleJoin(forum)}
+                  onClick={() => handleOpenChat(forum)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                     <span style={{
-                      background: catStyle.bg, color: catStyle.color,
+                      background: `${accent}18`, color: accent,
                       fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                      maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {forum.category}
+                      {forum.project}
                     </span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Clock size={11} /> {forum.lastActivity}
+                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      <Clock size={11} /> {formatRelative(forum.last_activity)}
                     </span>
                   </div>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
                     {forum.title}
                   </h3>
-                  <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
-                    {forum.desc}
+                  <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14, lineHeight: 1.5, minHeight: 38 }}>
+                    {forum.description || <em>Tidak ada deskripsi.</em>}
                   </p>
                   <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
                     <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Users size={12} /> {forum.participants} peserta
+                      <Users size={12} /> {forum.member_count ?? 0} anggota
                     </span>
                     <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <MessageSquare size={12} /> {forum.messages} pesan
+                      <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
                     </span>
                     <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
-                      oleh {forum.author}
+                      {formatDate(forum.created_at)}
                     </span>
                   </div>
                 </div>
@@ -186,104 +207,49 @@ export default function ForumPage({ role = 'admin' }) {
             })}
           </div>
         )}
-
-        {/* Create Forum Modal */}
-        {showCreate && (
-          <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          }}
-            onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}
-          >
-            <div style={{
-              background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 460,
-              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937' }}>Buat Forum Baru</h2>
-                <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleCreateForum} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                    Judul Forum <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <input
-                    type="text" required
-                    value={newForm.title}
-                    onChange={e => setNewForm({ ...newForm, title: e.target.value })}
-                    placeholder="Nama forum..."
-                    style={{
-                      width: '100%', padding: '10px 12px',
-                      border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                      outline: 'none', boxSizing: 'border-box',
-                    }}
-                    onFocus={e => e.target.style.borderColor = '#2563EB'}
-                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                    Kategori
-                  </label>
-                  <select
-                    value={newForm.category}
-                    onChange={e => setNewForm({ ...newForm, category: e.target.value })}
-                    style={{
-                      width: '100%', padding: '10px 12px',
-                      border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                      outline: 'none', boxSizing: 'border-box', background: '#fff',
-                    }}
-                  >
-                    <option>Support</option>
-                    <option>Project</option>
-                    <option>Finance</option>
-                    <option>Announcement</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                    Deskripsi
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={newForm.desc}
-                    onChange={e => setNewForm({ ...newForm, desc: e.target.value })}
-                    placeholder="Deskripsi forum..."
-                    style={{
-                      width: '100%', padding: '10px 12px', resize: 'vertical',
-                      border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                      outline: 'none', boxSizing: 'border-box', lineHeight: 1.5,
-                    }}
-                    onFocus={e => e.target.style.borderColor = '#2563EB'}
-                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                  <button
-                    type="button" onClick={() => setShowCreate(false)}
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: 8,
-                      border: '1.5px solid #E5E7EB', background: '#fff',
-                      color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                    }}
-                  >Batal</button>
-                  <button
-                    type="submit"
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: 8, border: 'none',
-                      background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                      color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >Buat Forum</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Join Forum Modal */}
+      {showJoinModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowJoinModal(false); setJoinLink(''); } }}
+        >
+          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 8 }}><Link2 size={18} color="#2563EB" /></div>
+                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>Gabung Forum</h2>
+              </div>
+              <button onClick={() => { setShowJoinModal(false); setJoinLink(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Paste link atau token yang dikirim admin untuk bergabung ke forum chat.</p>
+            <form onSubmit={handleJoinForum}>
+              <input
+                value={joinLink}
+                onChange={e => setJoinLink(e.target.value)}
+                placeholder="Contoh: http://...webchat.../chat/join/abc123"
+                autoFocus
+                style={{
+                  width: '100%', padding: '11px 14px',
+                  border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
+                  outline: 'none', boxSizing: 'border-box', marginBottom: 16,
+                }}
+                onFocus={e => e.target.style.borderColor = '#2563EB'}
+                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+              />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={() => { setShowJoinModal(false); setJoinLink(''); }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, cursor: 'pointer' }}
+                >Batal</button>
+                <button type="submit" disabled={joinLoading || !joinLink.trim()}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: joinLoading || !joinLink.trim() ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: joinLoading || !joinLink.trim() ? 'not-allowed' : 'pointer' }}
+                >{joinLoading ? 'Bergabung...' : 'Gabung'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

@@ -77,6 +77,29 @@ router.post('/join/:token', authenticate, (req, res) => {
   res.json({ forum_id: forum.id, title: forum.title, project: forum.project });
 });
 
+// GET /api/forums/:id/members — get forum members
+router.get('/:id/members', authenticate, (req, res) => {
+  const forumId = parseInt(req.params.id);
+  if (isNaN(forumId)) return res.status(400).json({ error: 'Forum ID tidak valid.' });
+
+  if (req.user.role !== 'admin') {
+    const membership = db.prepare(
+      'SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?'
+    ).get(forumId, req.user.id);
+    if (!membership) return res.status(403).json({ error: 'Tidak memiliki akses.' });
+  }
+
+  const members = db.prepare(`
+    SELECT u.id, u.username, u.role
+    FROM forum_members fm
+    JOIN users u ON fm.user_id = u.id
+    WHERE fm.forum_id = ?
+    ORDER BY u.role, u.username
+  `).all(forumId);
+
+  res.json(members);
+});
+
 // DELETE /api/forums/:id — delete forum (admin only)
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   const forumId = parseInt(req.params.id);

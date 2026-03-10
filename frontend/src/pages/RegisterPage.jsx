@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, addToast } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -17,26 +17,23 @@ export default function RegisterPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (form.password !== form.confirm) {
-      alert('Password tidak cocok.');
+      addToast('Password tidak cocok.', 'error');
       return;
     }
 
     if (form.password.length < 6) {
-      alert('Password minimal 6 karakter.');
+      addToast('Password minimal 6 karakter.', 'error');
       return;
     }
 
     setLoading(true);
-
-    setTimeout(() => {
-      const success = register(form.username, form.email, form.password);
-      if (success) navigate('/login');
-      setLoading(false);
-    }, 400);
+    const result = await register(form.username, form.email, form.password);
+    if (result.success) navigate('/login');
+    setLoading(false);
   };
 
   return (

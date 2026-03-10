@@ -1,32 +1,34 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    setTimeout(() => {
-      const success = login(form.email, form.password);
-      if (success) {
-        const stored = localStorage.getItem('wchat_user');
-        const user = stored ? JSON.parse(stored) : null;
-
-        if (user?.role === 'admin') navigate('/admin/dashboard');
-        else if (user?.role === 'karyawan') navigate('/karyawan/dashboard');
-        else navigate('/client/dashboard');
+    const result = await login(form.email, form.password);
+    if (result.success) {
+      const redirect = searchParams.get('redirect');
+      if (redirect) {
+        navigate(redirect, { replace: true });
+      } else if (result.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (result.role === 'karyawan') {
+        navigate('/karyawan/dashboard');
+      } else {
+        navigate('/client/dashboard');
       }
-      setLoading(false);
-    }, 400);
+    }
+    setLoading(false);
   };
 
   return (
@@ -368,7 +370,7 @@ export default function LoginPage() {
             </div>
 
             <div className="demo-box">
-              <strong>Demo Admin:</strong> admin@gmail.com / adminchat
+              <strong>Demo Admin:</strong> admin@webcare.com / adminchat
             </div>
           </div>
         </div>

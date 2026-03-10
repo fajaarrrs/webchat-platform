@@ -1,13 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api';
 import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen } from 'lucide-react';
-
-const initialLinks = [
-  { id: 'lnk-001', project: 'Support Umum',    desc: 'Link umum untuk client yang butuh bantuan.', url: '/chat/join/abc123', created: '01 Mar 2026', uses: 14 },
-  { id: 'lnk-002', project: 'Project Alpha',   desc: 'Chat khusus untuk tim Project Alpha.',        url: '/chat/join/def456', created: '03 Mar 2026', uses: 7  },
-  { id: 'lnk-003', project: 'Billing Support', desc: 'Pertanyaan seputar tagihan dan pembayaran.',  url: '/chat/join/ghi789', created: '06 Mar 2026', uses: 3  },
-];
 
 export default function CreateLinkPage() {
   const { addToast } = useAuth();
@@ -18,35 +13,38 @@ export default function CreateLinkPage() {
   const [fetching, setFetching] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const handleGenerate = (e) => {
+  useEffect(() => {
+    api.get('/forums')
+      .then(data => setLinks(data))
+      .catch(() => {})
+      .finally(() => setFetching(false));
+  }, []);
+
+  const handleGenerate = async (e) => {
     e.preventDefault();
     if (!form.title.trim() || !form.project.trim()) return;
     setLoading(true);
-    setTimeout(() => {
-      const id = `lnk-${Date.now()}`;
-      const token = Math.random().toString(36).slice(2, 9);
-      const newLink = {
-        id,
+    try {
+      const newForum = await api.post('/forums', {
+        title: form.title.trim(),
         project: form.project.trim(),
-        desc: form.desc.trim(),
-        url: `/chat/join/${token}`,
-        created: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        uses: 0,
-      };
-      setLinks(prev => [newLink, ...prev]);
-      setForm({ project: '', desc: '' });
-      addToast(`Link untuk "${newLink.project}" berhasil dibuat!`, 'success');
+        description: form.description.trim(),
+      });
+      setLinks(prev => [newForum, ...prev]);
+      setForm({ title: '', project: '', description: '' });
+      addToast(`Link "${newForum.title}" berhasil dibuat!`, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  const handleCopy = (url) => {
-    const fullUrl = `${window.location.origin}${url}`;
-    navigator.clipboard.writeText(fullUrl).then(() => {
-      addToast('Link berhasil disalin!', 'success');
-    }).catch(() => {
-      addToast('Gagal menyalin link.', 'error');
-    });
+  const handleCopy = (token) => {
+    const fullUrl = `${window.location.origin}/chat/join/${token}`;
+    navigator.clipboard.writeText(fullUrl)
+      .then(() => addToast('Link berhasil disalin!', 'success'))
+      .catch(() => addToast('Gagal menyalin link.', 'error'));
   };
 
   const handleDelete = async (id) => {
@@ -54,19 +52,39 @@ export default function CreateLinkPage() {
       await api.delete(`/forums/${id}`);
       setLinks(prev => prev.filter(l => l.id !== id));
       setDeleteConfirm(null);
-      addToast('Forum berhasil dihapus.', 'success');
+      addToast('Link berhasil dihapus.', 'success');
     } catch (err) {
       addToast(err.message, 'error');
     }
   };
 
-  const filtered = links.filter(l =>
-    l.project.toLowerCase().includes(search.toLowerCase())
+  const formatDate = (dt) => {
+    if (!dt) return '—';
+    return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const filteredLinks = links.filter(l =>
+    l.title?.toLowerCase().includes(search.toLowerCase()) ||
+    l.project?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const cardStyle = {
+    background: '#fff', borderRadius: '12px', border: '1px solid #E5E7EB',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px', overflow: 'hidden',
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', borderRadius: '8px',
+    border: '1.5px solid #E5E7EB', fontSize: '14px', outline: 'none',
+    transition: 'border-color 0.2s', boxSizing: 'border-box',
+  };
+
+  const isDisabled = loading || !form.title.trim() || !form.project.trim();
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 1000 }}>
+      <div style={{ padding: '40px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'Inter, sans-serif' }}>
+
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -75,247 +93,186 @@ export default function CreateLinkPage() {
             </div>
             <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111827', margin: 0 }}>Kelola Link Chat</h1>
           </div>
-          <p style={{ color: '#6B7280', fontSize: 14 }}>
-            Buat dan bagikan link unik agar client dapat langsung bergabung ke sesi chat.
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>
+            Buat link unik agar client dapat langsung bergabung ke sesi chat secara instan.
           </p>
         </div>
 
-        {/* Form Card */}
-        <div style={{
-          background: '#fff', borderRadius: 14, padding: '28px',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB', marginBottom: 28,
-        }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Plus size={16} color="#2563EB" /> Generate Link Baru
+        {/* Form Section */}
+        <div style={{ ...cardStyle, padding: '28px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#374151', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={18} color="#2563EB" /> Generate Link Baru
           </h2>
           <form onSubmit={handleGenerate}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                  Nama Project <span style={{ color: '#ef4444' }}>*</span>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#4B5563', marginBottom: '6px' }}>
+                  Judul Link <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
-                  type="text" required
-                  value={form.project}
-                  onChange={e => setForm({ ...form, project: e.target.value })}
+                  type="text" required value={form.title}
                   placeholder="contoh: Support Pelanggan Q1"
-                  style={{
-                    width: '100%', padding: '10px 12px',
-                    border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                    outline: 'none', color: '#1F2937', boxSizing: 'border-box',
-                    transition: 'border-color 0.2s',
-                  }}
+                  style={inputStyle}
+                  onChange={e => setForm({ ...form, title: e.target.value })}
                   onFocus={e => e.target.style.borderColor = '#2563EB'}
                   onBlur={e => e.target.style.borderColor = '#E5E7EB'}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                  Deskripsi
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#4B5563', marginBottom: '6px' }}>
+                  Nama Project <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
-                  type="text"
-                  value={form.desc}
-                  onChange={e => setForm({ ...form, desc: e.target.value })}
-                  placeholder="Deskripsi singkat (opsional)"
-                  style={{
-                    width: '100%', padding: '10px 12px',
-                    border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                    outline: 'none', color: '#1F2937', boxSizing: 'border-box',
-                    transition: 'border-color 0.2s',
-                  }}
+                  type="text" required value={form.project}
+                  placeholder="contoh: Project Alpha"
+                  style={inputStyle}
+                  onChange={e => setForm({ ...form, project: e.target.value })}
                   onFocus={e => e.target.style.borderColor = '#2563EB'}
                   onBlur={e => e.target.style.borderColor = '#E5E7EB'}
                 />
               </div>
             </div>
-            {/* Row 2: Description full-width */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                Description
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#4B5563', marginBottom: '6px' }}>
+                Deskripsi
               </label>
-              <textarea
-                value={form.description}
-                onChange={e => setForm({ ...form, description: e.target.value })}
+              <input
+                type="text" value={form.description}
                 placeholder="Deskripsi singkat forum ini (opsional)"
-                rows={3}
-                style={{
-                  width: '100%', padding: '10px 12px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-                  outline: 'none', color: '#1F2937', boxSizing: 'border-box',
-                  resize: 'vertical', fontFamily: 'inherit',
-                  transition: 'border-color 0.2s',
-                }}
+                style={inputStyle}
+                onChange={e => setForm({ ...form, description: e.target.value })}
                 onFocus={e => e.target.style.borderColor = '#2563EB'}
                 onBlur={e => e.target.style.borderColor = '#E5E7EB'}
               />
             </div>
             <button
-              type="submit"
-              disabled={loading || !form.project.trim()}
+              type="submit" disabled={isDisabled}
               style={{
-                padding: '10px 22px', borderRadius: 8, border: 'none',
-                background: loading || !form.project.trim() ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                color: '#fff', fontWeight: 600, fontSize: 14,
-                cursor: loading || !form.project.trim() ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 24px', borderRadius: '8px', border: 'none',
+                background: isDisabled ? '#93C5FD' : '#2563EB',
+                color: '#fff', fontWeight: 600, fontSize: '14px',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s',
               }}
             >
-              <Link2 size={15} />
-              {loading ? 'Generating...' : 'Generate Link'}
+              <Link2 size={16} />
+              {loading ? 'Processing...' : 'Generate Link'}
             </button>
           </form>
         </div>
 
-        {/* Table Card */}
-        <div style={{
-          background: '#fff', borderRadius: 14,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
-          overflow: 'hidden',
-        }}>
-          {/* Table Header */}
+        {/* Table Section */}
+        <div style={cardStyle}>
           <div style={{
             padding: '16px 24px', borderBottom: '1px solid #F3F4F6',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px',
           }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>
-              Daftar Link ({links.length})
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1F2937', margin: 0 }}>
+              Daftar Link Aktif ({links.length})
             </h2>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
               <input
-                type="text"
-                value={search}
+                type="text" placeholder="Cari project..." value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Cari project..."
-                style={{
-                  padding: '7px 10px 7px 30px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 13,
-                  outline: 'none', width: 200, boxSizing: 'border-box',
-                }}
+                style={{ ...inputStyle, paddingLeft: '36px', width: '240px' }}
                 onFocus={e => e.target.style.borderColor = '#2563EB'}
                 onBlur={e => e.target.style.borderColor = '#E5E7EB'}
               />
             </div>
           </div>
 
-          {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9CA3AF' }}>
-              <FolderOpen size={40} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.35 }} />
-              <p style={{ fontSize: 14, fontWeight: 500 }}>
-                {search ? 'Tidak ada link yang cocok.' : 'Belum ada link yang dibuat.'}
-              </p>
-            </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#F9FAFB' }}>
-                  {['Nama Project', 'Deskripsi', 'URL Link', 'Dibuat', 'Pemakaian', 'Aksi'].map(h => (
-                    <th key={h} style={{
-                      padding: '12px 20px', textAlign: 'left', fontSize: 12,
-                      fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #F3F4F6',
-                      whiteSpace: 'nowrap',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((link, i) => (
-                  <tr key={link.id} style={{
-                    borderBottom: i < filtered.length - 1 ? '1px solid #F9FAFB' : 'none',
-                    transition: 'background 0.15s',
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}
-                  >
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>{link.project}</span>
-                    </td>
-                    <td style={{ padding: '14px 20px', maxWidth: 200 }}>
-                      <span style={{ fontSize: 13, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        {link.desc || <em style={{ color: '#D1D5DB' }}>—</em>}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <code style={{
-                        fontSize: 12, background: '#F0F9FF', color: '#0369A1',
-                        padding: '3px 8px', borderRadius: 5, border: '1px solid #BAE6FD',
-                      }}>
-                        {link.url}
-                      </code>
-                    </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{ fontSize: 12, color: '#6B7280' }}>{link.created}</span>
-                    </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{
-                        background: '#ecfdf5', color: '#059669',
-                        fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
-                      }}>
-                        {link.uses}x
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          onClick={() => handleCopy(link.url)}
-                          title="Salin link"
-                          style={{
-                            padding: '6px 8px', borderRadius: 6, border: '1px solid #E5E7EB',
-                            background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                            fontSize: 12, color: '#6B7280',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563EB'; e.currentTarget.style.borderColor = '#93c5fd'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
-                        >
-                          <Copy size={13} /> Salin
-                        </button>
-                        <a
-                          href={link.url}
-                          title="Buka link"
-                          style={{
-                            padding: '6px 8px', borderRadius: 6, border: '1px solid #E5E7EB',
-                            background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                            fontSize: 12, color: '#6B7280', textDecoration: 'none',
-                          }}
-                        >
-                          <ExternalLink size={13} />
-                        </a>
-                        {deleteConfirm === link.id ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button
-                              onClick={() => handleDelete(link.id)}
-                              style={{
-                                padding: '6px 10px', borderRadius: 6, border: 'none',
-                                background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                              }}>
-                              Ya
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              style={{
-                                padding: '6px 10px', borderRadius: 6, border: '1px solid #E5E7EB',
-                                background: '#fff', cursor: 'pointer', fontSize: 12, color: '#6B7280',
-                              }}>
-                              Batal
-                            </button>
-                          </div>
-                        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            {fetching ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF', fontSize: '14px' }}>
+                Memuat data...
+              </div>
+            ) : filteredLinks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF' }}>
+                <FolderOpen size={48} style={{ opacity: 0.2, marginBottom: '12px', display: 'block', margin: '0 auto 12px' }} />
+                <p style={{ fontSize: '14px', margin: 0 }}>
+                  {search ? 'Tidak ada link yang cocok.' : 'Belum ada link yang dibuat.'}
+                </p>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ background: '#F9FAFB', textAlign: 'left' }}>
+                    {['Forum / Project', 'URL Chat', 'Anggota', 'Dibuat', 'Aksi'].map(h => (
+                      <th key={h} style={{ padding: '12px 24px', color: '#6B7280', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLinks.map((link) => (
+                    <tr key={link.id} style={{ borderTop: '1px solid #F3F4F6' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}
+                    >
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ fontWeight: 600, color: '#1F2937' }}>{link.title}</div>
+                        <div style={{ fontSize: '12px', color: '#9CA3AF' }}>{link.project}</div>
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <code style={{
+                          background: '#F0F9FF', color: '#0369A1',
+                          padding: '3px 8px', borderRadius: 5, fontSize: '12px', border: '1px solid #BAE6FD',
+                        }}>
+                          /chat/join/{link.token}
+                        </code>
+                      </td>
+                      <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                        <span style={{
+                          background: '#ECFDF5', color: '#059669',
+                          padding: '2px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 700,
+                        }}>
+                          {link.member_count ?? 0}x
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 24px', color: '#6B7280', fontSize: '13px' }}>
+                        {formatDate(link.created_at)}
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
-                            onClick={() => setDeleteConfirm(link.id)}
-                            title="Hapus link"
-                            style={{
-                              padding: '6px 8px', borderRadius: 6, border: '1px solid #E5E7EB',
-                              background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                              color: '#6B7280',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                            onClick={() => handleCopy(link.token)}
+                            title="Salin link"
+                            style={{ border: '1px solid #E5E7EB', background: '#fff', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px', color: '#6B7280' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563EB'; e.currentTarget.style.borderColor = '#93c5fd'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
                           >
-                            <Trash2 size={13} />
+                            <Copy size={13} /> Salin
                           </button>
-                        )}
-                      </div>
+                          <a
+                            href={`/chat/join/${link.token}`}
+                            title="Buka link"
+                            style={{ border: '1px solid #E5E7EB', background: '#fff', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', color: '#6B7280', textDecoration: 'none' }}
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                          {deleteConfirm === link.id ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                onClick={() => handleDelete(link.id)}
+                                style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                              >Ya</button>
+                              <button
+                                onClick={() => setDeleteConfirm(null)}
+                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: '12px', color: '#6B7280' }}
+                              >Batal</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteConfirm(link.id)}
+                              title="Hapus link"
+                              style={{ border: '1px solid #E5E7EB', background: '#fff', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#6B7280' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -324,6 +281,7 @@ export default function CreateLinkPage() {
             )}
           </div>
         </div>
+      </div>
     </DashboardLayout>
   );
 }

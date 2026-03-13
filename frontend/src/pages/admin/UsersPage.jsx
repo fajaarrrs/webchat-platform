@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { api, BASE_URL } from '../../api';
@@ -116,7 +116,8 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
+
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -134,11 +135,12 @@ export default function UsersPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 16,
             marginBottom: 22,
           }}
         >
+
           <div style={summaryCardStyle}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
@@ -268,9 +270,10 @@ export default function UsersPage() {
             borderRadius: 16,
             boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
             border: '1px solid #E5E7EB',
-            overflow: 'hidden',
+            overflow: 'auto',
           }}
         >
+
           {/* Toolbar */}
           <div
             style={{

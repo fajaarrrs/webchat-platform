@@ -122,6 +122,11 @@ io.on('connection', (socket) => {
     // Only owner or admin can delete
     if (socket.user.role !== 'admin' && msg.user_id !== socket.user.id) return;
 
+    // Clear references in forum_reads to avoid FK constraint error
+    db.prepare('UPDATE forum_reads SET last_read_message_id = NULL WHERE last_read_message_id = ?').run(mid);
+    // Clear self-references in messages (replies)
+    db.prepare('UPDATE messages SET reply_to_id = NULL WHERE reply_to_id = ?').run(mid);
+
     db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
     io.to(`forum:${fid}`).emit('message_deleted', { messageId: mid, forumId: fid });
     emitForumPreviewUpdates(io, fid);

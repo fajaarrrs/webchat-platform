@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
@@ -217,7 +217,8 @@ export default function SettingsPage() {
   return (
     <>
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 780 }}>
+      <div style={{ padding: '20px 16px', maxWidth: 780, margin: '0 auto', width: '100%' }}>
+
         {/* Header */}
         <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 10 }}>
           <Settings size={20} color="#2563EB" />
@@ -284,7 +285,12 @@ export default function SettingsPage() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#F3F4F6', padding: 4, borderRadius: 10, width: 'fit-content' }}>
+        <div style={{ 
+          display: 'flex', gap: 4, marginBottom: 20, background: '#F3F4F6', 
+          padding: 4, borderRadius: 10, width: '100%', overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
+
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -296,7 +302,9 @@ export default function SettingsPage() {
                 fontWeight: tab === key ? 700 : 400, fontSize: 13,
                 boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                 transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6,
+                flexShrink: 0
               }}
+
             >
               <Icon size={14} /> {label}
             </button>
@@ -467,67 +475,70 @@ export default function SettingsPage() {
             {usersLoading ? (
               <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Memuat...</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#F9FAFB' }}>
-                    {['Username', 'Email', 'Role', 'Aksi'].map(h => (
-                      <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #F3F4F6' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u, i) => {
-                    const rb = roleBadge[u.role] || roleBadge.client;
-                    const isSelf = u.id === user?.id;
-                    return (
-                      <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? '1px solid #F9FAFB' : 'none' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                        onMouseLeave={e => e.currentTarget.style.background = ''}>
-                        <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#1F2937' }}>
-                          {u.username}
-                          {isSelf && <span style={{ marginLeft: 6, fontSize: 10, color: '#2563EB' }}>(kamu)</span>}
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: '#6B7280' }}>{u.email}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: rb.bg, color: rb.color, fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 99 }}>
-                            {rb.label}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => setEditingUser({ id: u.id, username: u.username, email: u.email, role: u.role })}
-                              style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280' }}
-                              onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563EB'; e.currentTarget.style.borderColor = '#93c5fd'; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
-                            >
-                              <Pencil size={12} /> Edit
-                            </button>
-                            {!isSelf && u.role !== 'admin' && (
-                              deleteConfirm === u.id ? (
-                                <div style={{ display: 'flex', gap: 4 }}>
-                                  <button onClick={() => handleDeleteUser(u.id)} style={{ padding: '5px 8px', borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Ya</button>
-                                  <button onClick={() => setDeleteConfirm(null)} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#6B7280' }}>Batal</button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setDeleteConfirm(u.id)}
-                                  style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#6B7280' }}
-                                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fca5a5'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      {['Username', 'Email', 'Role', 'Aksi'].map(h => (
+                        <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u, i) => {
+                      const rb = roleBadge[u.role] || roleBadge.client;
+                      const isSelf = u.id === user?.id;
+                      return (
+                        <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? '1px solid #F9FAFB' : 'none' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                          onMouseLeave={e => e.currentTarget.style.background = ''}>
+                          <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#1F2937', whiteSpace: 'nowrap' }}>
+                            {u.username}
+                            {isSelf && <span style={{ marginLeft: 6, fontSize: 10, color: '#2563EB' }}>(kamu)</span>}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: 13, color: '#6B7280', whiteSpace: 'nowrap' }}>{u.email}</td>
+                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                            <span style={{ background: rb.bg, color: rb.color, fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 99 }}>
+                              {rb.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                onClick={() => setEditingUser({ id: u.id, username: u.username, email: u.email, role: u.role })}
+                                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563EB'; e.currentTarget.style.borderColor = '#93c5fd'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+                              >
+                                <Pencil size={12} /> Edit
+                              </button>
+                              {!isSelf && u.role !== 'admin' && (
+                                deleteConfirm === u.id ? (
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    <button onClick={() => handleDeleteUser(u.id)} style={{ padding: '5px 8px', borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Ya</button>
+                                    <button onClick={() => setDeleteConfirm(null)} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#6B7280' }}>Batal</button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setDeleteConfirm(u.id)}
+                                    style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#6B7280' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
+
           </div>
         )}
       </div>

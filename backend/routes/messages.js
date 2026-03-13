@@ -133,8 +133,14 @@ router.delete('/forum/:forumId', authenticate, (req, res) => {
   }
 
   const files = db.prepare(
-    'SELECT file_url FROM messages WHERE forum_id = ? AND file_url IS NOT NULL'
+    'SELECT id, file_url FROM messages WHERE forum_id = ? AND file_url IS NOT NULL'
   ).all(forumId);
+  const msgIds = files.map(f => f.id);
+
+  // Clear references in forum_reads to avoid FK constraint error
+  db.prepare('UPDATE forum_reads SET last_read_message_id = NULL WHERE forum_id = ?').run(forumId);
+  // Clear self-references in messages (replies)
+  db.prepare('UPDATE messages SET reply_to_id = NULL WHERE forum_id = ?').run(forumId);
 
   db.prepare('DELETE FROM messages WHERE forum_id = ?').run(forumId);
 
@@ -161,6 +167,11 @@ router.delete('/:id', authenticate, (req, res) => {
   if (req.user.role !== 'admin' && msg.user_id !== req.user.id) {
     return res.status(403).json({ error: 'Tidak bisa menghapus pesan orang lain.' });
   }
+
+  // Clear references in forum_reads to avoid FK constraint error
+  db.prepare('UPDATE forum_reads SET last_read_message_id = NULL WHERE last_read_message_id = ?').run(msgId);
+  // Clear self-references in messages (replies)
+  db.prepare('UPDATE messages SET reply_to_id = NULL WHERE reply_to_id = ?').run(msgId);
 
   db.prepare('DELETE FROM messages WHERE id = ?').run(msgId);
 

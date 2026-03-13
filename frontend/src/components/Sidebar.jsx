@@ -2,8 +2,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, MessageSquare, Users, Link2,
-  MessagesSquare, Settings, LogOut, ChevronRight,
+  MessagesSquare, Settings, LogOut, ChevronRight, X
 } from 'lucide-react';
+
 
 const menuByRole = {
   admin: [
@@ -34,7 +35,8 @@ const roleBadge = {
   client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -51,28 +53,52 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: 240, minHeight: '100vh', background: '#111827',
+      width: 260, minHeight: '100vh', background: '#111827',
       display: 'flex', flexDirection: 'column',
-      flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
+      flexShrink: 0, 
+      position: 'fixed',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 1000,
+      transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+      transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      height: '100vh',
+      boxShadow: isOpen ? '10px 0 30px rgba(0,0,0,0.5)' : 'none',
     }}>
+
       {/* Logo */}
       <div style={{
         padding: '24px 20px 20px',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: '#1D4ED8',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <MessageSquare size={18} color="#fff" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: '#1D4ED8',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <MessageSquare size={18} color="#fff" />
+            </div>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px' }}>
+              WebcareChat
+            </span>
           </div>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px' }}>
-            WebcareChat
-          </span>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              style={{
+                background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)',
+                cursor: 'pointer', padding: 4
+              }}
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
+
       </div>
 
       {/* User Info */}
@@ -132,6 +158,9 @@ export default function Sidebar() {
                 e.currentTarget.style.background = 'transparent';
                 e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
               }
+            }}
+            onClick={() => {
+              if (window.innerWidth < 1024 && onClose) onClose();
             }}
           >
             <Icon size={17} />

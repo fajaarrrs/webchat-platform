@@ -155,7 +155,8 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
+
         {/* Page Header */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
@@ -170,10 +171,11 @@ export default function AdminDashboard() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 16,
             marginBottom: 28,
           }}
+
         >
           {statCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
             <div
@@ -248,7 +250,8 @@ export default function AdminDashboard() {
                 Belum ada data yang perlu ditindaklanjuti.
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+
                 {followUpItems.map(({ id, title, desc, icon: Icon, color, bg, to, state }) => (
                   <Link
                     key={id}
@@ -299,7 +302,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bottom Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* Aktivitas Terkini */}
           <div
             style={{

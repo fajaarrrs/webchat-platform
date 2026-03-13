@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -197,7 +197,8 @@ export default function ForumPage() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1240, margin: '0 auto' }}>
+
         {/* Header */}
         <div
           style={{
@@ -250,11 +251,12 @@ export default function ForumPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 16,
             marginBottom: 20,
           }}
         >
+
           <div style={statCardStyle}>
             <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
               Total Forum
@@ -411,9 +413,10 @@ export default function ForumPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: 18,
             }}
+
           >
             {filtered.map((forum, idx) => {
               const accent = forumColors[idx % forumColors.length];

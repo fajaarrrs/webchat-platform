@@ -1,14 +1,13 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import {
-  Search, Send, Paperclip, MoreVertical,
-  FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2,
-  Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown,
-  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight,
+  Search, Send, Paperclip, MoreVertical, Eraser, LogOut, Info, Star, MessageSquare, Plus,
+  FileText, ImageIcon, CheckCheck, 
+  X, UserPlus, MessagesSquare, Pin, PinOff, Trash2, Reply, Smile, ChevronLeft, Users, Download, CornerUpLeft, ChevronDown, ChevronRight, Link2
 } from 'lucide-react';
 
 const SOCKET_URL = 'http://localhost:5000';
@@ -355,17 +354,28 @@ export default function ChatPage() {
     e.preventDefault();
     const raw = joinLink.trim();
     if (!raw) return;
-    const match = raw.match(/\/chat\/join\/([a-f0-9]+)/);
+    const match = raw.match(/\/chat\/join\/([a-zA-Z0-9]+)/);
     const token = match ? match[1] : raw;
     setJoinLoading(true);
     try {
       const data = await api.post(`/forums/join/${token}`);
-      const updated = await api.get('/forums');
-      setForums(updated);
-      setActiveForumId(data.forum_id);
+      addToast(`Berhasil gabung ke forum "${data.title}".`, 'success');
+      
       setShowJoinModal(false);
       setJoinLink('');
-      addToast(`Berhasil gabung ke forum "${data.title}".`, 'success');
+      
+      // Update forums list first
+      const updated = await api.get('/forums');
+      setForums(updated);
+      
+      // Force navigation to the same page with new state to trigger a full clean remount/re-fetch
+      // This is often more reliable than just changing activeForumId in-place
+      import('react-router-dom').then(({ useNavigate }) => {
+        // Since we are inside the component, but handleJoinForum is async,
+        // we should just use the navigate we already have at the top level
+      });
+      navigate(`/${user?.role}/chat`, { state: { forumId: data.forum_id }, replace: true });
+      setActiveForumId(data.forum_id);
     } catch (err) {
       addToast(err.message || 'Link tidak valid.', 'error');
     }
@@ -401,7 +411,10 @@ export default function ChatPage() {
     }
   };
 
-  const getInitials = (name = '') => name.slice(0, 2).toUpperCase();
+  const getInitials = (name) => {
+    if (!name) return '';
+    return String(name).slice(0, 2).toUpperCase();
+  };
   const getColor = idx => forumColors[idx % forumColors.length];
   const formatUnreadCount = (count) => (count > 99 ? '99+' : String(count));
   const formatTime = dt => {
@@ -551,7 +564,7 @@ export default function ChatPage() {
     setSelectedMessageIds([]);
   };
 
-  const activeForum = forums.find(f => f.id === activeForumId);
+  const activeForum = forums.find(f => String(f.id) === String(activeForumId));
   const isActiveForumFavorite = activeForumId ? favoriteForumIds.includes(activeForumId) : false;
   const tabForums = chatTab === 'favorites'
     ? forums.filter(f => favoriteForumIds.includes(f.id))
@@ -625,13 +638,59 @@ export default function ChatPage() {
 
   return (
     <DashboardLayout>
+      <style>{`
+        @media (max-width: 768px) {
+          .chat-left-panel {
+            display: ${activeForumId ? 'none' : 'flex'} !important;
+            width: 100% !important;
+            height: calc(100vh - 60px) !important;
+          }
+          .chat-right-panel {
+            display: ${activeForumId ? 'flex' : 'none'} !important;
+            width: 100% !important;
+            height: calc(100vh - 60px) !important;
+            min-width: 0 !important;
+          }
+          .mobile-back-btn {
+            display: flex !important;
+          }
+          .chat-directory-panel {
+            position: fixed !important;
+            right: 0 !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            width: 280px !important;
+            z-index: 1001 !important;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.1) !important;
+            border-left: none !important;
+            transform: ${showDirectory ? 'translateX(0)' : 'translateX(100%)'} !important;
+            transition: transform 0.3s ease !important;
+            display: flex !important;
+          }
+          .directory-overlay {
+            display: ${showDirectory ? 'block' : 'none'} !important;
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0,0,0,0.2) !important;
+            z-index: 1000 !important;
+          }
+        }
+
+        @media (min-width: 1024px) {
+           .chat-left-panel, .chat-right-panel {
+             height: 100vh !important;
+           }
+        }
+      `}</style>
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
 
+
         {/* LEFT PANEL */}
-        <div style={{
+        <div className="chat-left-panel" style={{
           width: 300, borderRight: '1px solid #E5E7EB', background: '#fff',
           display: 'flex', flexDirection: 'column', flexShrink: 0,
         }}>
+
           <div style={{ padding: '14px 16px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
@@ -779,12 +838,13 @@ export default function ChatPage() {
 
         {/* CENTER PANEL */}
         {!activeForum ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F9FAFB', color: '#9CA3AF' }}>
+          <div className="chat-right-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F9FAFB', color: '#9CA3AF' }}>
             <MessagesSquare size={48} style={{ marginBottom: 14, opacity: 0.3 }} />
             <p style={{ fontSize: 14 }}>Pilih forum untuk mulai chat.</p>
           </div>
         ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 }}>
+          <div className="chat-right-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 }}>
+
 
             {/* Chat Header */}
             <div style={{
@@ -793,16 +853,28 @@ export default function ChatPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  className="mobile-back-btn"
+                  onClick={() => setActiveForumId(null)}
+                  style={{
+                    display: 'none', alignItems: 'center', justifyContent: 'center',
+                    width: 32, height: 32, borderRadius: 8, background: '#F3F4F6',
+                    border: 'none', color: '#6B7280', cursor: 'pointer',
+                  }}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+
                 <div style={{
                   width: 38, height: 38, borderRadius: '50%',
                   background: getColor(forums.findIndex(f => f.id === activeForumId)),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 12, fontWeight: 700, color: '#fff',
                 }}>
-                  {getInitials(activeForum.title)}
+                  {getInitials(activeForum?.title)}
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', margin: 0 }}>{activeForum.title}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', margin: 0 }}>{activeForum?.title}</p>
                   <p style={{ fontSize: 12, margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
                     <span style={{ color: '#6B7280' }}>Online</span>
@@ -1300,9 +1372,15 @@ export default function ChatPage() {
           </div>
         )}
 
+        {/* RIGHT PANEL — Directory Overlay */}
+        {activeForum && showDirectory && (
+          <div className="directory-overlay" onClick={() => setShowDirectory(false)} />
+        )}
+
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
-          <div style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div className="chat-directory-panel" style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+
             <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Directory</span>
               <button
@@ -1330,12 +1408,12 @@ export default function ChatPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {forumMembers.map(member => (
                       <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                          {getInitials(member.username)}
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor((member?.id || 0) % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
+                          {getInitials(member?.username)}
                         </div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {member.username}
+                            {member?.username}
                             {member.id === user?.id && (
                               <span style={{ fontSize: 10, fontWeight: 600, color: '#6366F1', background: '#EEF2FF', borderRadius: 6, padding: '1px 6px' }}>Anda</span>
                             )}

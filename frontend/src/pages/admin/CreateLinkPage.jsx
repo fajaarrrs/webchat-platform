@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
@@ -103,12 +103,13 @@ export default function CreateLinkPage() {
     <DashboardLayout>
       <div
         style={{
-          padding: '40px',
+          padding: '24px 16px',
           maxWidth: '1100px',
           margin: '0 auto',
           fontFamily: 'Inter, sans-serif',
         }}
       >
+
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>

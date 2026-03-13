@@ -34,9 +34,10 @@ const roleBadge = {
   client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   if (!user) return null;
 
@@ -51,9 +52,13 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: 240, minHeight: '100vh', background: '#111827',
+      width: 240, minHeight: '100vh', 
+      background: '#0f172a', // Slate 950 Dark Navy
       display: 'flex', flexDirection: 'column',
-      flexShrink: 0, position: 'sticky', top: 0, height: '100vh',
+      flexShrink: 0, position: isMobile ? 'fixed' : 'sticky', 
+      top: 0, height: '100dvh', zIndex: 999,
+      transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+      transition: 'transform 0.3s ease-in-out',
     }}>
       {/* Logo */}
       <div style={{
@@ -107,7 +112,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav style={{ flex: 1, padding: '12px 12px', overflowY: 'auto' }}>
+      <nav style={{ flex: 1, minHeight: 0, padding: '12px 12px 0', overflowY: 'auto' }}>
         {menu.map(({ label, icon: Icon, to }) => (
           <NavLink
             key={to}
@@ -120,6 +125,7 @@ export default function Sidebar() {
               fontWeight: isActive ? 600 : 400, fontSize: 14,
               transition: 'all 0.15s',
               textDecoration: 'none',
+              flexShrink: 0
             })}
             onMouseEnter={e => {
               if (!e.currentTarget.classList.contains('active')) {
@@ -142,7 +148,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Logout */}
-      <div style={{ padding: '12px 12px 20px' }}>
+      <div style={{ padding: '4px 12px 24px', flexShrink: 0, background: '#0f172a' }}>
         <button
           onClick={handleLogout}
           style={{

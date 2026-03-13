@@ -1,12 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
+import { api } from '../../api';
 import { MessageSquare, Clock, CheckCircle, Inbox, ArrowUpRight } from 'lucide-react';
-
-const myChats = [
-  { client: 'Client #021', project: 'Support Umum',     status: 'active',  lastMsg: 'Halo, ada yang bisa dibantu?', time: '5 mnt' },
-  { client: 'Client #018', project: 'Project Alpha',    status: 'pending', lastMsg: 'Saya butuh bantuan segera.',   time: '22 mnt' },
-  { client: 'Client #015', project: 'Support Billing',  status: 'done',    lastMsg: 'Terima kasih sudah membantu!', time: '2 jam' },
-];
 
 const statusStyle = {
   active:  { bg: '#ecfdf5', color: '#059669', label: 'Aktif' },
@@ -14,10 +10,51 @@ const statusStyle = {
   done:    { bg: '#f3f4f6', color: '#6B7280', label: 'Selesai' },
 };
 
+function formatRelativeTime(dt) {
+  if (!dt) return '-';
+  const utc = dt.endsWith('Z') ? dt : `${dt.replace(' ', 'T')}Z`;
+  const diffMs = Date.now() - new Date(utc).getTime();
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (minutes < 1) return 'Baru saja';
+  if (minutes < 60) return `${minutes} mnt`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam`;
+
+  return new Date(utc).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+}
+
 export default function KaryawanDashboard() {
   const { user } = useAuth();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
+  const [stats, setStats] = useState({ activeCount: 0, pendingCount: 0, handledTodayCount: 0 });
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api.get('/forums/dashboard/karyawan')
+      .then((data) => {
+        if (cancelled) return;
+        setStats(data.stats || { activeCount: 0, pendingCount: 0, handledTodayCount: 0 });
+        setQueue(Array.isArray(data.queue) ? data.queue : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStats({ activeCount: 0, pendingCount: 0, handledTodayCount: 0 });
+        setQueue([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <DashboardLayout>
@@ -34,9 +71,9 @@ export default function KaryawanDashboard() {
         {/* Stat mini */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
           {[
-            { label: 'Chat Aktif',    value: '2', icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
-            { label: 'Menunggu',      value: '1', icon: Clock,         color: '#d97706', bg: '#fffbeb' },
-            { label: 'Selesai Hari Ini', value: '5', icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
+            { label: 'Chat Aktif', value: stats.activeCount, icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
+            { label: 'Menunggu', value: stats.pendingCount, icon: Clock, color: '#d97706', bg: '#fffbeb' },
+            { label: 'Ditangani Hari Ini', value: stats.handledTodayCount, icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
           ].map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} style={{
               background: '#fff', borderRadius: 12, padding: '18px 20px',
@@ -68,41 +105,51 @@ export default function KaryawanDashboard() {
               Lihat Semua <ArrowUpRight size={13} />
             </a>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {myChats.map((chat, i) => {
-              const s = statusStyle[chat.status];
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px', borderRadius: 8,
-                  border: '1px solid #F3F4F6', background: '#FAFAFA',
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#2563EB', flexShrink: 0,
+          {loading ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+              Memuat antrian chat...
+            </div>
+          ) : queue.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+              Belum ada chat yang masuk dari database.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {queue.map((chat) => {
+                const s = statusStyle[chat.status] || statusStyle.pending;
+                return (
+                  <div key={chat.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', borderRadius: 8,
+                    border: '1px solid #F3F4F6', background: '#FAFAFA',
                   }}>
-                    {chat.client.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>{chat.client}</span>
-                      <span style={{ fontSize: 11, color: '#6B7280' }}>· {chat.project}</span>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, color: '#2563EB', flexShrink: 0,
+                    }}>
+                      {chat.client_name.slice(0, 2).toUpperCase()}
                     </div>
-                    <p style={{ fontSize: 12, color: '#6B7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {chat.lastMsg}
-                    </p>
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>{chat.client_name}</span>
+                        <span style={{ fontSize: 11, color: '#6B7280' }}>· {chat.project}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: '#6B7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {chat.last_preview}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, color: '#9CA3AF' }}>{formatRelativeTime(chat.last_activity)}</span>
+                      <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>
+                        {s.label}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>{chat.time}</span>
-                    <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>
-                      {s.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

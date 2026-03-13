@@ -26,7 +26,7 @@ const upload = multer({
 });
 
 const MSG_SELECT = `
-  SELECT m.id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
+  SELECT m.id, m.forum_id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
          m.file_url, m.file_name, m.file_size, m.file_type,
          u.id as user_id, u.username, u.role,
          rm.content as reply_content, ru.username as reply_username
@@ -110,6 +110,30 @@ router.get('/download/:id', authenticate, (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
   res.setHeader('Content-Type', msg.file_type || 'application/octet-stream');
   res.sendFile(filePath);
+});
+
+// DELETE /api/messages/forum/:forumId — clear all messages in a forum (admin only)
+router.delete('/forum/:forumId', authenticate, (req, res) => {
+  const forumId = parseInt(req.params.forumId);
+  if (isNaN(forumId)) return res.status(400).json({ error: 'Forum ID tidak valid.' });
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Hanya admin yang dapat mengosongkan chat forum.' });
+  }
+
+  const files = db.prepare(
+    'SELECT file_url FROM messages WHERE forum_id = ? AND file_url IS NOT NULL'
+  ).all(forumId);
+
+  db.prepare('DELETE FROM messages WHERE forum_id = ?').run(forumId);
+
+  files.forEach((item) => {
+    if (!item.file_url) return;
+    const filePath = path.join(__dirname, '..', item.file_url);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  });
+
+  res.json({ message: 'Chat forum berhasil dikosongkan.' });
 });
 
 // DELETE /api/messages/:id — delete a message (owner or admin)

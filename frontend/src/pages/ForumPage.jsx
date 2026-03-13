@@ -50,12 +50,12 @@ export default function ForumPage() {
   };
 
   const formatDate = (dt) => {
-    if (!dt) return 'â€”';
+    if (!dt) return '-';
     return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatRelative = (dt) => {
-    if (!dt) return 'â€”';
+    if (!dt) return '-';
     const diff = Date.now() - new Date(dt).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Baru saja';
@@ -182,7 +182,7 @@ export default function ForumPage() {
                       {forum.project}
                     </span>
                     <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                      <Clock size={11} /> {formatRelative(forum.last_activity)}
+                      <Clock size={11} /> {formatRelative(forum.created_at)}
                     </span>
                   </div>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>

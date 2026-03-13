@@ -164,6 +164,7 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
+                  maxLength={15}
                   value={form.title}
                   placeholder="contoh: Support Pelanggan Q1"
                   style={inputStyle}
@@ -171,6 +172,11 @@ export default function CreateLinkPage() {
                   onFocus={(e) => (e.target.style.borderColor = '#2563EB')}
                   onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
                 />
+                {form.title.length > 0 && (
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.title.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.title.length}/15
+                  </div>
+                )}
               </div>
 
               <div>
@@ -188,6 +194,7 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
+                  maxLength={15}
                   value={form.project}
                   placeholder="contoh: Project Alpha"
                   style={inputStyle}
@@ -195,6 +202,11 @@ export default function CreateLinkPage() {
                   onFocus={(e) => (e.target.style.borderColor = '#2563EB')}
                   onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
                 />
+                {form.project.length > 0 && (
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.project.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.project.length}/15
+                  </div>
+                )}
               </div>
             </div>
 

@@ -27,6 +27,7 @@ function formatRelativeTime(dt) {
 
 export default function KaryawanDashboard() {
   const { user } = useAuth();
+  const isMobile = window.innerWidth <= 768;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
   const [stats, setStats] = useState({ activeCount: 0, pendingCount: 0, handledTodayCount: 0 });
@@ -58,8 +59,13 @@ export default function KaryawanDashboard() {
 
   return (
     <DashboardLayout>
+<<<<<<< HEAD
       <div style={{ padding: '20px 16px', width: '100%' }}>
 
+=======
+
+      <div style={{ padding: '32px 36px', width: '100%' }}>
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
@@ -89,6 +95,7 @@ export default function KaryawanDashboard() {
                   <p style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
                   <p style={{ fontSize: 12, color: '#6B7280', margin: '2px 0 0' }}>{label}</p>
                 </div>
+
               </div>
             ))}
           </div>

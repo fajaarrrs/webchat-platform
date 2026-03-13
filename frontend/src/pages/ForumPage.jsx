@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import './ForumPage.css'; // Responsive styling using CSS Grid and Media Queries
 
 const forumColors = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#0891B2', '#BE185D'];
 const SOCKET_URL = 'http://localhost:5000';
@@ -148,6 +149,7 @@ export default function ForumPage() {
   };
 
   const formatDate = (dt) => {
+
     const d = parseUtcDate(dt);
     if (!d) return 'â€”';
     return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
@@ -157,6 +159,7 @@ export default function ForumPage() {
     const d = parseUtcDate(dt);
     if (!d) return 'â€”';
     const diff = Date.now() - d.getTime();
+
     const mins = Math.floor(diff / 60000);
 
     if (mins < 1) return 'Baru saja';
@@ -197,8 +200,13 @@ export default function ForumPage() {
 
   return (
     <DashboardLayout>
+<<<<<<< HEAD
       <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1240, margin: '0 auto' }}>
 
+=======
+
+      <div style={{ padding: '32px 36px', width: '100%' }}>
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
         {/* Header */}
         <div
           style={{
@@ -352,10 +360,12 @@ export default function ForumPage() {
               </div>
             </div>
           </div>
+
         </div>
 
         {/* Content */}
         {loading ? (
+
           <div
             style={{
               ...cardBase,
@@ -380,6 +390,7 @@ export default function ForumPage() {
             <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 6px', color: '#6B7280' }}>
               {search ? 'Tidak ada forum yang cocok' : 'Belum ada forum'}
             </p>
+
             <p style={{ fontSize: 13, margin: '0 0 18px' }}>
               {search
                 ? 'Coba gunakan kata kunci lain.'
@@ -565,18 +576,22 @@ export default function ForumPage() {
                       </span>
                     </div>
                   </div>
+
                 </button>
               );
             })}
           </div>
         ) : (
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
             {filtered.map((forum, idx) => {
               const accent = forumColors[idx % forumColors.length];
 
               return (
                 <button
                   key={forum.id}
+
                   type="button"
                   onClick={() => handleOpenChat(forum)}
                   style={{
@@ -590,36 +605,41 @@ export default function ForumPage() {
                   }}
                   onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'}
+                  
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                    <span style={{
-                      background: `${accent}18`, color: accent,
-                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
+                  <div className="forum-card-header">
+                    <span 
+                      className="forum-badge"
+                      style={{ background: `${accent}18`, color: accent }}
+                    >
                       {forum.project}
                     </span>
+
                     <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <Clock size={11} /> <strong style={{ fontSize: 11, fontWeight: 600 }}>Aktif terakhir:</strong>&nbsp;{formatRelative(forum.last_activity)}
+
                     </span>
                   </div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
-                    {forum.title}
-                  </h3>
-                  <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14, lineHeight: 1.5, minHeight: 38 }}>
+
+                  <h3 className="forum-card-title">{forum.title}</h3>
+                  
+                  <p className="forum-card-desc">
                     {forum.description || <em>Tidak ada deskripsi.</em>}
                   </p>
-                  <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
-                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+
+                  <div className="forum-card-footer">
+                    <span className="forum-stat">
                       <Users size={12} /> {forum.member_count ?? 0} anggota
                     </span>
-                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className="forum-stat">
                       <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
                     </span>
+
                     <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
                       {isAdmin
                         ? `Dibuat pada: ${formatDate(forum.created_at)}`
                         : `Masuk forum pada: ${formatDate(forum.joined_at || forum.created_at)}`}
+
                     </span>
                   </div>
                 </button>
@@ -646,6 +666,7 @@ export default function ForumPage() {
             if (e.target === e.currentTarget) closeJoinModal();
           }}
         >
+
           <div
             style={{
               background: '#fff',
@@ -665,6 +686,7 @@ export default function ForumPage() {
                 gap: 12,
               }}
             >
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div
                   style={{
@@ -729,6 +751,7 @@ export default function ForumPage() {
               />
 
               <div style={{ display: 'flex', gap: 10 }}>
+
                 <button
                   type="button"
                   onClick={closeJoinModal}
@@ -763,6 +786,7 @@ export default function ForumPage() {
                     fontSize: 14,
                     fontWeight: 700,
                     cursor: joinLoading || !joinLink.trim() ? 'not-allowed' : 'pointer',
+
                   }}
                 >
                   {joinLoading ? 'Bergabung...' : 'Gabung'}

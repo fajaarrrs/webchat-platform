@@ -45,6 +45,13 @@ export default function UsersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     api
@@ -116,14 +123,20 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
+<<<<<<< HEAD
       <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
 
+=======
+      <div style={{ padding: isMobile ? '24px 16px' : '32px 36px', width: '100%' }}>
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <Users size={20} color="#2563EB" />
+
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
               Manajemen User
+
             </h1>
           </div>
           <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>
@@ -135,7 +148,11 @@ export default function UsersPage() {
         <div
           style={{
             display: 'grid',
+<<<<<<< HEAD
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+=======
+            gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(140px, 1fr))' : 'repeat(4, minmax(0, 1fr))',
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
             gap: 16,
             marginBottom: 22,
           }}
@@ -147,7 +164,7 @@ export default function UsersPage() {
                 <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
                   Total Users
                 </p>
-                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#1F2937' }}>{counts.all}</p>
+                <p style={{ margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937' }}>{counts.all}</p>
               </div>
               <div
                 style={{
@@ -171,7 +188,7 @@ export default function UsersPage() {
                 <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
                   Admin
                 </p>
-                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#1F2937' }}>{counts.admin}</p>
+                <p style={{ margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937' }}>{counts.admin}</p>
               </div>
               <div
                 style={{
@@ -280,13 +297,10 @@ export default function UsersPage() {
               padding: '16px 24px',
               borderBottom: '1px solid #F3F4F6',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ position: 'relative', flex: 1, minWidth: 260, maxWidth: 360 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 260, maxWidth: 360 }}>
               <Search
                 size={15}
                 style={{
@@ -344,7 +358,8 @@ export default function UsersPage() {
               </p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 600 : 'auto' }}>
               <thead>
                 <tr style={{ background: '#F9FAFB' }}>
                   {['User', 'Email', 'Role', 'Aksi'].map((h) => (
@@ -556,7 +571,8 @@ export default function UsersPage() {
                 })}
               </tbody>
             </table>
-          )}
+          </div>
+        )}
         </div>
       </div>
 

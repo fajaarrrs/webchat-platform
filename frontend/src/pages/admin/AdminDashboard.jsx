@@ -36,6 +36,7 @@ function toRelativeTime(dt) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const isMobile = window.innerWidth <= 768;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
 
@@ -155,11 +156,15 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout>
+<<<<<<< HEAD
       <div style={{ padding: '20px 16px', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
 
+=======
+      <div style={{ padding: isMobile ? '20px 16px' : '32px 36px', width: '100%' }}>
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
         {/* Page Header */}
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
             {greeting}, {user?.username}! 👋
           </h1>
           <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
@@ -171,7 +176,11 @@ export default function AdminDashboard() {
         <div
           style={{
             display: 'grid',
+<<<<<<< HEAD
             gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+=======
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))',
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
             gap: 16,
             marginBottom: 28,
           }}
@@ -245,6 +254,7 @@ export default function AdminDashboard() {
               </h3>
             </div>
 
+
             {followUpItems.length === 0 ? (
               <div style={{ padding: '24px 8px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
                 Belum ada data yang perlu ditindaklanjuti.
@@ -257,6 +267,7 @@ export default function AdminDashboard() {
                     key={id}
                     to={to}
                     state={state}
+
                     style={{
                       borderRadius: 12,
                       padding: 16,
@@ -302,7 +313,11 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bottom Grid */}
+<<<<<<< HEAD
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+=======
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
           {/* Aktivitas Terkini */}
           <div
             style={{

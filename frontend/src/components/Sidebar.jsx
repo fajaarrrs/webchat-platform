@@ -36,9 +36,13 @@ const roleBadge = {
 };
 
 export default function Sidebar({ isOpen, onClose }) {
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   if (!user) return null;
 
@@ -53,6 +57,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside style={{
+<<<<<<< HEAD
       width: 260, minHeight: '100vh', background: '#111827',
       display: 'flex', flexDirection: 'column',
       flexShrink: 0, 
@@ -65,6 +70,15 @@ export default function Sidebar({ isOpen, onClose }) {
       transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       height: '100vh',
       boxShadow: isOpen ? '10px 0 30px rgba(0,0,0,0.5)' : 'none',
+=======
+      width: 240, minHeight: '100vh', 
+      background: '#0f172a', // Slate 950 Dark Navy
+      display: 'flex', flexDirection: 'column',
+      flexShrink: 0, position: isMobile ? 'fixed' : 'sticky', 
+      top: 0, height: '100dvh', zIndex: 999,
+      transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+      transition: 'transform 0.3s ease-in-out',
+>>>>>>> 4aff7a5d1b0566286d99997a26f5f76ca51653ff
     }}>
 
       {/* Logo */}
@@ -133,7 +147,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* Navigation */}
-      <nav style={{ flex: 1, padding: '12px 12px', overflowY: 'auto' }}>
+      <nav style={{ flex: 1, minHeight: 0, padding: '12px 12px 0', overflowY: 'auto' }}>
         {menu.map(({ label, icon: Icon, to }) => (
           <NavLink
             key={to}
@@ -146,6 +160,7 @@ export default function Sidebar({ isOpen, onClose }) {
               fontWeight: isActive ? 600 : 400, fontSize: 14,
               transition: 'all 0.15s',
               textDecoration: 'none',
+              flexShrink: 0
             })}
             onMouseEnter={e => {
               if (!e.currentTarget.classList.contains('active')) {
@@ -171,7 +186,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </nav>
 
       {/* Logout */}
-      <div style={{ padding: '12px 12px 20px' }}>
+      <div style={{ padding: '4px 12px 24px', flexShrink: 0, background: '#0f172a' }}>
         <button
           onClick={handleLogout}
           style={{

@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { db } = require('../database');
+const { emitForumPreviewUpdates, markActiveViewersAsRead, markForumAsRead } = require('../forumState');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
@@ -56,6 +57,10 @@ router.get('/:forumId', authenticate, (req, res) => {
     LIMIT 200
   `).all(forumId);
 
+  markForumAsRead(forumId, req.user.id);
+  const io = req.app.get('io');
+  if (io) emitForumPreviewUpdates(io, forumId);
+
   res.json(messages);
 });
 
@@ -83,6 +88,12 @@ router.post('/upload', authenticate, upload.single('file'), (req, res) => {
   ).run(fid, req.user.id, '', replyId, fileUrl, req.file.originalname, req.file.size, req.file.mimetype);
 
   const message = db.prepare(`${MSG_SELECT} WHERE m.id = ?`).get(result.lastInsertRowid);
+  const io = req.app.get('io');
+  if (io) {
+    markActiveViewersAsRead(io, fid);
+    io.to(`forum:${fid}`).emit('new_message', message);
+    emitForumPreviewUpdates(io, fid);
+  }
   res.status(201).json(message);
 });
 
@@ -133,6 +144,9 @@ router.delete('/forum/:forumId', authenticate, (req, res) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   });
 
+  const io = req.app.get('io');
+  if (io) emitForumPreviewUpdates(io, forumId);
+
   res.json({ message: 'Chat forum berhasil dikosongkan.' });
 });
 
@@ -154,6 +168,12 @@ router.delete('/:id', authenticate, (req, res) => {
   if (msg.file_url) {
     const filePath = path.join(__dirname, '..', msg.file_url);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`forum:${msg.forum_id}`).emit('message_deleted', { messageId: msgId, forumId: msg.forum_id });
+    emitForumPreviewUpdates(io, msg.forum_id);
   }
 
   res.json({ message: 'Pesan dihapus.' });

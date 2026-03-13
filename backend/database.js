@@ -54,6 +54,17 @@ function initDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (reply_to_id) REFERENCES messages(id)
     );
+
+    CREATE TABLE IF NOT EXISTS forum_reads (
+      forum_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      last_read_at DATETIME,
+      last_read_message_id INTEGER,
+      PRIMARY KEY (forum_id, user_id),
+      FOREIGN KEY (forum_id) REFERENCES forums(id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (last_read_message_id) REFERENCES messages(id)
+    );
   `);
 
   // Migrations for existing databases
@@ -80,6 +91,11 @@ function initDatabase() {
   }
   if (!msgCols.includes('file_type')) {
     db.exec('ALTER TABLE messages ADD COLUMN file_type TEXT');
+  }
+
+  const forumReadCols = db.prepare('PRAGMA table_info(forum_reads)').all().map(c => c.name);
+  if (forumReadCols.length > 0 && !forumReadCols.includes('last_read_message_id')) {
+    db.exec('ALTER TABLE forum_reads ADD COLUMN last_read_message_id INTEGER');
   }
 
   // Seed admin user if none exists

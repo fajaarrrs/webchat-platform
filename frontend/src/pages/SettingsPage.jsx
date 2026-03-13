@@ -241,7 +241,7 @@ export default function SettingsPage() {
             ) : (
               <div style={{
                 width: 64, height: 64, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #1D4ED8, #7c3aed)',
+                background: '#1D4ED8',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 22, fontWeight: 700, color: '#fff',
               }}>
@@ -320,7 +320,7 @@ export default function SettingsPage() {
                   ) : (
                     <div style={{
                       width: 56, height: 56, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #1D4ED8, #7c3aed)',
+                      background: '#1D4ED8',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 18, fontWeight: 700, color: '#fff',
                     }}>
@@ -398,7 +398,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={saving} style={{
                   padding: '10px 22px', borderRadius: 8, border: 'none',
-                  background: saving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                  background: saving ? '#93c5fd' : '#1D4ED8',
                   color: '#fff', fontWeight: 600, fontSize: 14,
                   cursor: saving ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -446,7 +446,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={saving} style={{
                   padding: '10px 22px', borderRadius: 8, border: 'none',
-                  background: saving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                  background: saving ? '#93c5fd' : '#1D4ED8',
                   color: '#fff', fontWeight: 600, fontSize: 14,
                   cursor: saving ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -572,7 +572,7 @@ export default function SettingsPage() {
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button type="button" onClick={() => setEditingUser(null)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Batal</button>
-                <button type="submit" disabled={editSaving} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: editSaving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer' }}>
+                <button type="submit" disabled={editSaving} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: editSaving ? '#93c5fd' : '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer' }}>
                   {editSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
@@ -678,7 +678,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleCropConfirm}
-                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
               >
                 Gunakan Foto
               </button>

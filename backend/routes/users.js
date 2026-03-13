@@ -35,7 +35,7 @@ const uploadAvatar = multer({
 router.get("/", authenticate, requireAdmin, (req, res) => {
   const users = db
     .prepare(
-      "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
+      "SELECT id, username, email, role, avatar, created_at FROM users ORDER BY created_at ASC",
     )
     .all();
   res.json(users);
@@ -177,7 +177,7 @@ router.put("/:id", authenticate, requireAdmin, (req, res) => {
 
   const updated = db
     .prepare(
-      "SELECT id, username, email, role, created_at FROM users WHERE id = ?",
+      "SELECT id, username, email, role, avatar, created_at FROM users WHERE id = ?",
     )
     .get(userId);
   res.json(updated);

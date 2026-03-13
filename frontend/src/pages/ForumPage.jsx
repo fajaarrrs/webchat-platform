@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
+import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -19,6 +20,22 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 const forumColors = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#0891B2', '#BE185D'];
+const SOCKET_URL = 'http://localhost:5000';
+
+// Parse timestamps coming from the server (stored in UTC as "YYYY-MM-DD HH:MM:SS").
+const parseUtcDate = (value) => {
+  if (!value) return null;
+  const utc = value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`;
+  const d = new Date(utc);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const getActivityTime = (value) => {
+  const d = parseUtcDate(value);
+  return d ? d.getTime() : 0;
+};
+
+const sortForumsByActivity = (items) => [...items].sort((a, b) => getActivityTime(b.last_activity || b.created_at) - getActivityTime(a.last_activity || a.created_at));
 
 const cardBase = {
   background: '#fff',
@@ -46,6 +63,44 @@ export default function ForumPage() {
       .catch((err) => addToast(err.message, 'error'))
       .finally(() => setLoading(false));
   }, [addToast]);
+
+  // Real-time updates: subscribe to forum preview updates and new_message events
+  useEffect(() => {
+    const token = localStorage.getItem('wchat_token');
+    if (!token) return;
+
+    const socket = io(SOCKET_URL, { auth: { token } });
+
+    socket.on('forum_preview_updated', (payload) => {
+      const forumId = payload?.forum_id ?? payload?.id;
+      if (!forumId) return;
+      setForums((prev) => {
+        const updated = prev.map((f) => (f.id === forumId ? { ...f, ...payload, id: f.id } : f));
+        return sortForumsByActivity(updated);
+      });
+    });
+
+    socket.on('new_message', (msg) => {
+      setForums((prev) => {
+        const updated = prev.map((f) => {
+          if (f.id !== msg.forum_id) return f;
+          return {
+            ...f,
+            last_message: msg.content || '',
+            last_file_name: msg.file_name || null,
+            last_file_type: msg.file_type || null,
+            last_activity: msg.created_at || f.last_activity,
+            last_sender_id: msg.user_id || f.last_sender_id || null,
+            last_sender_username: msg.username || f.last_sender_username || null,
+            last_sender_role: msg.role || f.last_sender_role || null,
+          };
+        });
+        return sortForumsByActivity(updated);
+      });
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   const filtered = useMemo(() => {
     return forums.filter(
@@ -93,13 +148,15 @@ export default function ForumPage() {
   };
 
   const formatDate = (dt) => {
-    if (!dt) return 'â€”';
-    return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    const d = parseUtcDate(dt);
+    if (!d) return 'â€”';
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
   };
 
   const formatRelative = (dt) => {
-    if (!dt) return 'â€”';
-    const diff = Date.now() - new Date(dt).getTime();
+    const d = parseUtcDate(dt);
+    if (!d) return 'â€”';
+    const diff = Date.now() - d.getTime();
     const mins = Math.floor(diff / 60000);
 
     if (mins < 1) return 'Baru saja';
@@ -433,18 +490,15 @@ export default function ForumPage() {
                         </span>
                       </div>
 
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          color: '#9CA3AF',
-                          fontSize: 11,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <Clock size={11} />
-                        {formatRelative(forum.last_activity)}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, color: '#9CA3AF', fontSize: 11, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Clock size={11} />
+                          <strong style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>Aktif terakhir:</strong>
+                          <span style={{ marginLeft: 6 }}>{formatRelative(forum.last_activity)}</span>
+                        </div>
+                        {forum.last_read_at && (
+                          <div style={{ fontSize: 11, color: '#9CA3AF' }}>Terakhir dibuka: {formatRelative(forum.last_read_at)}</div>
+                        )}
                       </div>
                     </div>
 
@@ -474,32 +528,8 @@ export default function ForumPage() {
                       </p>
                     </div>
 
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: 16,
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        background: '#F9FAFB',
-                        border: '1px solid #F3F4F6',
-                      }}
-                    >
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        borderTop: '1px solid #F3F4F6',
-                        paddingTop: 14,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', gap: 12 }}>
                         <span
                           style={{
                             fontSize: 12,
@@ -525,7 +555,11 @@ export default function ForumPage() {
                         </span>
                       </div>
 
-                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(forum.created_at)}</span>
+                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>
+                        {isAdmin
+                          ? `Dibuat pada: ${formatDate(forum.created_at)}`
+                          : `Masuk forum pada: ${formatDate(forum.joined_at || forum.created_at)}`}
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -562,8 +596,8 @@ export default function ForumPage() {
                     }}>
                       {forum.project}
                     </span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                      <Clock size={11} /> {formatRelative(forum.last_activity)}
+                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <Clock size={11} /> <strong style={{ fontSize: 11, fontWeight: 600 }}>Aktif terakhir:</strong>&nbsp;{formatRelative(forum.last_activity)}
                     </span>
                   </div>
                   <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
@@ -580,7 +614,9 @@ export default function ForumPage() {
                       <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
                     </span>
                     <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
-                      {formatDate(forum.created_at)}
+                      {isAdmin
+                        ? `Dibuat pada: ${formatDate(forum.created_at)}`
+                        : `Masuk forum pada: ${formatDate(forum.joined_at || forum.created_at)}`}
                     </span>
                   </div>
                 </button>

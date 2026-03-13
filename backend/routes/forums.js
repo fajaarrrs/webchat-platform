@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { db } = require('../database');
+const { markForumAsRead } = require('../forumState');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -16,38 +17,73 @@ function getPreviewText(row) {
   return 'Belum ada pesan.';
 }
 
+const FORUM_SELECT_SQL = `
+  SELECT f.*,
+         u.username as creator_name,
+         (SELECT joined_at FROM forum_members WHERE forum_id = f.id AND user_id = ?) as joined_at,
+         (SELECT last_read_at FROM forum_reads WHERE forum_id = f.id AND user_id = ?) as last_read_at,
+         (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
+         (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count,
+         (SELECT content FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1) as last_message,
+         (SELECT file_name FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1) as last_file_name,
+         (SELECT file_type FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1) as last_file_type,
+         (SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1) as last_activity,
+         (SELECT u2.id FROM messages m JOIN users u2 ON u2.id = m.user_id WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_sender_id,
+         (SELECT u2.username FROM messages m JOIN users u2 ON u2.id = m.user_id WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_sender_username,
+         (SELECT u2.role FROM messages m JOIN users u2 ON u2.id = m.user_id WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_sender_role,
+         (
+           SELECT COUNT(*)
+           FROM messages m
+           LEFT JOIN forum_reads fr ON fr.forum_id = f.id AND fr.user_id = ?
+           WHERE m.forum_id = f.id
+             AND m.user_id != ?
+             AND (
+               fr.last_read_at IS NULL
+               OR m.created_at > fr.last_read_at
+               OR (m.created_at = fr.last_read_at AND m.id > COALESCE(fr.last_read_message_id, 0))
+             )
+         ) as unread_count
+  FROM forums f
+  LEFT JOIN users u ON f.created_by = u.id
+`;
+
+const jakartaDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function getJakartaDateKey(value) {
+  if (!value) return null;
+  const utc = value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`;
+  const date = new Date(utc);
+  if (Number.isNaN(date.getTime())) return null;
+  return jakartaDateFormatter.format(date);
+}
+
+function getConversationStatus(row, ownRole, todayKey) {
+  if (!row.message_count) return 'pending';
+  if (row.last_sender_role && row.last_sender_role !== ownRole) {
+    return getJakartaDateKey(row.last_activity || row.created_at) === todayKey ? 'active' : 'done';
+  }
+  return 'pending';
+}
+
 // GET /api/forums — admin gets all, others get only their forums
 router.get('/', authenticate, (req, res) => {
   let forums;
   if (req.user.role === 'admin') {
     forums = db.prepare(`
-      SELECT f.*,
-             u.username as creator_name,
-             (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
-             (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count,
-             (SELECT content FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_message,
-             (SELECT file_name FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_name,
-             (SELECT file_type FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_type,
-             (SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_activity
-      FROM forums f
-      LEFT JOIN users u ON f.created_by = u.id
-      ORDER BY f.created_at DESC
-    `).all();
+      ${FORUM_SELECT_SQL}
+      ORDER BY COALESCE((SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1), f.created_at) DESC
+    `).all(req.user.id, req.user.id, req.user.id, req.user.id);
   } else {
     forums = db.prepare(`
-      SELECT f.*,
-             u.username as creator_name,
-             (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
-             (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count,
-             (SELECT content FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_message,
-            (SELECT file_name FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_name,
-            (SELECT file_type FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_type,
-             (SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_activity
-      FROM forums f
-      LEFT JOIN users u ON f.created_by = u.id
+      ${FORUM_SELECT_SQL}
       JOIN forum_members fm ON fm.forum_id = f.id AND fm.user_id = ?
-      ORDER BY f.created_at DESC
-    `).all(req.user.id);
+      ORDER BY COALESCE((SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC, id DESC LIMIT 1), f.created_at) DESC
+    `).all(req.user.id, req.user.id, req.user.id, req.user.id, req.user.id);
   }
   res.json(forums);
 });
@@ -80,28 +116,11 @@ router.get('/dashboard/karyawan', authenticate, (req, res) => {
     ORDER BY COALESCE((SELECT created_at FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1), f.created_at) DESC
   `).all(req.user.id, req.user.id);
 
-  const todayKey = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+  const todayKey = jakartaDateFormatter.format(new Date());
 
   const queue = rows.map((row) => {
     const latestAt = row.last_activity || row.created_at;
-    const latestDate = latestAt
-      ? new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Asia/Jakarta',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(new Date((latestAt.endsWith('Z') ? latestAt : `${latestAt.replace(' ', 'T')}Z`)))
-      : null;
-
-    let status = 'pending';
-    if (row.message_count > 0 && row.last_sender_role && row.last_sender_role !== 'client') {
-      status = latestDate === todayKey ? 'active' : 'done';
-    }
+    const status = getConversationStatus(row, 'client', todayKey);
 
     return {
       id: row.id,
@@ -129,6 +148,57 @@ router.get('/dashboard/karyawan', authenticate, (req, res) => {
       handledTodayCount: queue.filter(item => item.handled_today).length,
     },
     queue: queue.slice(0, 8),
+  });
+});
+
+// GET /api/forums/dashboard/client — client dashboard summary and session history
+router.get('/dashboard/client', authenticate, (req, res) => {
+  if (req.user.role !== 'client') {
+    return res.status(403).json({ error: 'Dashboard ini hanya untuk client.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT f.id, f.title, f.project, f.created_at,
+           (SELECT COUNT(*) FROM messages m WHERE m.forum_id = f.id) as message_count,
+           (SELECT content FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_message,
+           (SELECT file_name FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_file_name,
+           (SELECT file_type FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_file_type,
+           (SELECT created_at FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_activity,
+           (SELECT u.role FROM messages m JOIN users u ON u.id = m.user_id WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_sender_role,
+           (
+             SELECT u.username
+             FROM forum_members fm2
+             JOIN users u ON u.id = fm2.user_id
+             WHERE fm2.forum_id = f.id AND u.role IN ('karyawan', 'admin')
+             ORDER BY CASE WHEN u.role = 'karyawan' THEN 0 ELSE 1 END, fm2.joined_at ASC, u.username ASC
+             LIMIT 1
+           ) as staff_name
+    FROM forums f
+    JOIN forum_members fm ON fm.forum_id = f.id AND fm.user_id = ?
+    ORDER BY COALESCE((SELECT created_at FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1), f.created_at) DESC
+  `).all(req.user.id);
+
+  const todayKey = jakartaDateFormatter.format(new Date());
+  const sessions = rows.map((row) => {
+    const latestAt = row.last_activity || row.created_at;
+    return {
+      id: row.id,
+      title: row.title,
+      project: row.project,
+      staff_name: row.staff_name || 'Belum ditetapkan',
+      last_preview: getPreviewText(row),
+      last_activity: latestAt,
+      status: getConversationStatus(row, 'client', todayKey),
+    };
+  });
+
+  res.json({
+    stats: {
+      activeCount: sessions.filter(item => item.status === 'active').length,
+      pendingCount: sessions.filter(item => item.status === 'pending').length,
+      totalCount: sessions.length,
+    },
+    sessions: sessions.slice(0, 8),
   });
 });
 
@@ -168,6 +238,7 @@ router.post('/join/:token', authenticate, (req, res) => {
   db.prepare(
     'INSERT OR IGNORE INTO forum_members (forum_id, user_id) VALUES (?, ?)'
   ).run(forum.id, req.user.id);
+  markForumAsRead(forum.id, req.user.id);
 
   res.json({ forum_id: forum.id, title: forum.title, project: forum.project });
 });

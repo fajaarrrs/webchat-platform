@@ -13,6 +13,56 @@ import {
 
 const SOCKET_URL = 'http://localhost:5000';
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
+const JAKARTA_TIMEZONE = 'Asia/Jakarta';
+const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: JAKARTA_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const chatListDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: JAKARTA_TIMEZONE,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+function parseUtcDate(value) {
+  if (!value) return null;
+  const utc = value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`;
+  const date = new Date(utc);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getJakartaDateKey(date) {
+  return jakartaDateKeyFormatter.format(date);
+}
+
+function formatForumActivityLabel(value) {
+  const activityDate = parseUtcDate(value);
+  if (!activityDate) return '';
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const activityKey = getJakartaDateKey(activityDate);
+  if (activityKey === getJakartaDateKey(today)) return 'Today';
+  if (activityKey === getJakartaDateKey(yesterday)) return 'Yesterday';
+
+  return chatListDateFormatter.format(activityDate);
+}
+
+function formatMessageGroupLabel(value) {
+  const activityDate = parseUtcDate(value);
+  if (!activityDate) return '';
+
+  if (getJakartaDateKey(activityDate) === getJakartaDateKey(new Date())) {
+    return 'Hari ini';
+  }
+
+  return chatListDateFormatter.format(activityDate);
+}
 
 function isImageAttachment(fileName = '', fileType = '') {
   return (fileType || '').startsWith('image/')
@@ -56,6 +106,8 @@ export default function ChatPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
   const [showDirectory, setShowDirectory] = useState(false);
+  const [showPinnedMenu, setShowPinnedMenu] = useState(false);
+  const [jumpedMessageId, setJumpedMessageId] = useState(null);
 
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -70,13 +122,36 @@ export default function ChatPage() {
   const messageRefs = useRef({});
   const prevForumIdRef = useRef(null);
   const longPressTimer = useRef(null);
+  const skipFavoriteSaveRef = useRef(true);
+  const skipChatTabSaveRef = useRef(true);
 
-  const favoriteKey = `wchat_forum_favorites_${user?.id || 'guest'}`;
+  const favoriteKey = user?.id ? `wchat_forum_favorites_${user.id}` : null;
+  const chatTabKey = user?.id ? `wchat_chat_tab_${user.id}` : null;
+  const sortForumsByActivity = (items) => [...items].sort(
+    (a, b) => getActivityTime(b.last_activity || b.created_at) - getActivityTime(a.last_activity || a.created_at)
+  );
 
   const getActivityTime = (value) => {
-    if (!value) return 0;
-    const utc = value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`;
-    return new Date(utc).getTime();
+    return parseUtcDate(value)?.getTime() || 0;
+  };
+
+  const applyForumPreviewUpdate = (payload) => {
+    const forumId = payload?.forum_id ?? payload?.id;
+    if (!forumId) return;
+
+    setForums((prev) => {
+      const updated = prev.map((forum) => (
+        forum.id === forumId
+          ? {
+              ...forum,
+              ...payload,
+              id: forum.id,
+            }
+          : forum
+      ));
+
+      return sortForumsByActivity(updated);
+    });
   };
 
   const syncForumPreview = (message, explicitForumId) => {
@@ -92,12 +167,13 @@ export default function ChatPage() {
           last_file_name: message?.file_name || null,
           last_file_type: message?.file_type || null,
           last_activity: message?.created_at || forum.last_activity,
+          last_sender_id: message?.user_id || forum.last_sender_id || null,
+          last_sender_username: message?.username || forum.last_sender_username || null,
+          last_sender_role: message?.role || forum.last_sender_role || null,
         };
       });
 
-      return [...updated].sort(
-        (a, b) => getActivityTime(b.last_activity || b.created_at) - getActivityTime(a.last_activity || a.created_at)
-      );
+      return sortForumsByActivity(updated);
     });
   };
 
@@ -108,6 +184,9 @@ export default function ChatPage() {
     socket.on('new_message', (msg) => {
       setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
       syncForumPreview(msg);
+    });
+    socket.on('forum_preview_updated', (payload) => {
+      applyForumPreviewUpdate(payload);
     });
     socket.on('message_deleted', ({ messageId }) =>
       setMessages(prev => prev.filter(m => m.id !== messageId))
@@ -120,12 +199,18 @@ export default function ChatPage() {
 
   useEffect(() => {
     api.get('/forums').then(data => {
-      setForums(data);
+      setForums(sortForumsByActivity(data));
       if (!initialForumId && data.length > 0) setActiveForumId(data[0].id);
     });
   }, []);
 
   useEffect(() => {
+    if (!favoriteKey) {
+      setFavoriteForumIds([]);
+      skipFavoriteSaveRef.current = true;
+      return;
+    }
+
     try {
       const raw = localStorage.getItem(favoriteKey);
       const parsed = raw ? JSON.parse(raw) : [];
@@ -133,11 +218,38 @@ export default function ChatPage() {
     } catch {
       setFavoriteForumIds([]);
     }
+    skipFavoriteSaveRef.current = true;
   }, [favoriteKey]);
 
   useEffect(() => {
+    if (!favoriteKey) return;
+    if (skipFavoriteSaveRef.current) {
+      skipFavoriteSaveRef.current = false;
+      return;
+    }
     localStorage.setItem(favoriteKey, JSON.stringify(favoriteForumIds));
   }, [favoriteKey, favoriteForumIds]);
+
+  useEffect(() => {
+    if (!chatTabKey) {
+      setChatTab('all');
+      skipChatTabSaveRef.current = true;
+      return;
+    }
+
+    const storedTab = localStorage.getItem(chatTabKey);
+    setChatTab(storedTab === 'favorites' ? 'favorites' : 'all');
+    skipChatTabSaveRef.current = true;
+  }, [chatTabKey]);
+
+  useEffect(() => {
+    if (!chatTabKey) return;
+    if (skipChatTabSaveRef.current) {
+      skipChatTabSaveRef.current = false;
+      return;
+    }
+    localStorage.setItem(chatTabKey, chatTab);
+  }, [chatTab, chatTabKey]);
 
   useEffect(() => {
     if (!activeForumId || !socketRef.current) return;
@@ -156,6 +268,8 @@ export default function ChatPage() {
     setMessageSearch('');
     setSearchMatchIndex(0);
     setShowDirectory(false);
+    setShowPinnedMenu(false);
+    setJumpedMessageId(null);
     api.get(`/messages/${activeForumId}`)
       .then(data => setMessages(data))
       .finally(() => setLoadingMsgs(false));
@@ -184,6 +298,14 @@ export default function ChatPage() {
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  useEffect(() => {
+    const handle = e => {
+      if (!e.target.closest('[data-pinnedmenu]')) setShowPinnedMenu(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
   const handleSend = e => {
     e?.preventDefault();
     if (!inputText.trim() || !activeForumId) return;
@@ -203,9 +325,18 @@ export default function ChatPage() {
   };
 
   const handlePin = msg => {
+    if (msg?.is_pinned) {
+      const ok = window.confirm('Apakah Anda yakin ingin membatalkan pin pada pesan ini?');
+      if (!ok) {
+        setOpenDropdownId(null);
+        setMobileMenu(null);
+        return;
+      }
+    }
     socketRef.current?.emit('pin_message', { messageId: msg.id, forumId: activeForumId });
     setOpenDropdownId(null);
     setMobileMenu(null);
+    setShowPinnedMenu(false);
   };
 
   const handleDelete = msg => {
@@ -272,11 +403,11 @@ export default function ChatPage() {
 
   const getInitials = (name = '') => name.slice(0, 2).toUpperCase();
   const getColor = idx => forumColors[idx % forumColors.length];
+  const formatUnreadCount = (count) => (count > 99 ? '99+' : String(count));
   const formatTime = dt => {
-    if (!dt) return '';
-    // SQLite stores UTC without timezone marker; append 'Z' so JS parses it as UTC
-    const utc = dt.endsWith('Z') ? dt : dt.replace(' ', 'T') + 'Z';
-    return new Date(utc).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
+    const parsed = parseUtcDate(dt);
+    if (!parsed) return '';
+    return parsed.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: JAKARTA_TIMEZONE });
   };
   const getRoleLabel = role =>
     role === 'admin' ? 'Admin' : role === 'karyawan' ? 'Employee' : 'Client';
@@ -284,26 +415,54 @@ export default function ChatPage() {
     role === 'admin' ? '#6d28d9' : role === 'karyawan' ? '#1d4ed8' : '#059669';
   const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
   const canPin = () => user?.role === 'admin';
-  const getForumPreview = (forum) => {
-    if (forum.last_file_name) {
-      if (isImageAttachment(forum.last_file_name, forum.last_file_type)) {
-        return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <ImageIcon size={13} color="#6B7280" />
-            <span>Gambar</span>
-          </span>
-        );
-      }
+  const getReplyPreviewData = (msg) => {
+    if (!msg.reply_to_id) return null;
 
-      return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <FileText size={13} color="#6B7280" />
-          <span>{getFileInfo(forum.last_file_name).label}</span>
-        </span>
-      );
+    const repliedMessage = messageLookup[msg.reply_to_id];
+    const replyUsername = msg.reply_username || repliedMessage?.username || 'Unknown';
+    const replyContent = msg.reply_content?.trim()
+      || repliedMessage?.content?.trim()
+      || (repliedMessage?.file_name
+        ? (isImageAttachment(repliedMessage.file_name, repliedMessage.file_type)
+          ? 'Gambar'
+          : `File: ${repliedMessage.file_name}`)
+        : 'Pesan tidak ditemukan');
+
+    return { username: replyUsername, content: replyContent };
+  };
+  const getForumSenderName = (forum) => {
+    if (!forum.last_sender_username) return '';
+    return forum.last_sender_id === user?.id ? 'Anda' : forum.last_sender_username;
+  };
+  const getForumPreview = (forum) => {
+    const sender = getForumSenderName(forum);
+    const prefix = sender ? `${sender}: ` : '';
+
+    if (forum.last_file_name) {
+      return `${prefix}${isImageAttachment(forum.last_file_name, forum.last_file_type) ? 'Gambar' : `File: ${forum.last_file_name}`}`;
     }
 
-    return forum.last_message?.trim() || '\u2014';
+    return `${prefix}${forum.last_message?.trim() || '\u2014'}`;
+  };
+
+  const getPinnedPreviewText = (msg) => {
+    if (!msg) return '';
+    if (msg.content?.trim()) return msg.content.trim();
+    if (msg.file_name) {
+      return isImageAttachment(msg.file_name, msg.file_type) ? 'Gambar' : `File: ${msg.file_name}`;
+    }
+    return 'Pesan disematkan';
+  };
+
+  const handleGoToMessage = (msg) => {
+    if (!msg) return;
+    const node = messageRefs.current[msg.id];
+    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setJumpedMessageId(msg.id);
+    setShowPinnedMenu(false);
+    setTimeout(() => {
+      setJumpedMessageId((prev) => (prev === msg.id ? null : prev));
+    }, 1400);
   };
 
   const toggleFavoriteForum = (forumId) => {
@@ -406,6 +565,10 @@ export default function ChatPage() {
     ? messages.filter((msg) => (`${msg.content || ''} ${msg.file_name || ''}`).toLowerCase().includes(normalizedMessageSearch))
     : [];
   const activeSearchMatchId = searchMatches[searchMatchIndex]?.id;
+  const messageLookup = messages.reduce((lookup, message) => {
+    lookup[message.id] = message;
+    return lookup;
+  }, {});
 
   useEffect(() => {
     setSearchMatchIndex(0);
@@ -417,6 +580,7 @@ export default function ChatPage() {
     node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [activeSearchMatchId]);
   const pinnedMessages = messages.filter(m => m.is_pinned);
+  const latestPinnedMessage = pinnedMessages[pinnedMessages.length - 1] || null;
   const sharedFiles = messages.filter(m => m.file_url);
 
   const renderDropdown = (msg, posStyle) => (
@@ -546,6 +710,7 @@ export default function ChatPage() {
             )}
             {filteredForums.map((forum, i) => {
               const isActive = activeForumId === forum.id;
+              const activityLabel = formatForumActivityLabel(forum.last_activity || forum.created_at);
               return (
                 <div
                   key={forum.id}
@@ -567,21 +732,43 @@ export default function ChatPage() {
                   }}>
                     {getInitials(forum.title)}
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        {forum.title}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {forum.title}
+                        </span>
                         {favoriteForumIds.includes(forum.id) && <Star size={11} color="#d97706" fill="#fbbf24" />}
-                      </span>
-                      {forum.last_activity && (
-                        <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0, marginLeft: 4 }}>
-                          {formatTime(forum.last_activity)}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{forum.project}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                        {getForumPreview(forum)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                      {activityLabel && (
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                          {activityLabel}
                         </span>
                       )}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{forum.project}</div>
-                    <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                      {getForumPreview(forum)}
+                      {Number(forum.unread_count) > 0 && (
+                        <span style={{
+                          minWidth: 20,
+                          height: 20,
+                          padding: '0 6px',
+                          borderRadius: 999,
+                          background: '#2563EB',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          lineHeight: 1,
+                        }}>
+                          {formatUnreadCount(Number(forum.unread_count))}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -697,9 +884,41 @@ export default function ChatPage() {
               <div style={{ padding: '7px 20px', background: '#EFF6FF', borderBottom: '1px solid #DBEAFE', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1D4ED8' }}>
                 <Pin size={12} />
                 <span style={{ fontWeight: 600 }}>Pinned:</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pinnedMessages[pinnedMessages.length - 1].content}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                  {getPinnedPreviewText(latestPinnedMessage)}
                 </span>
+                <div data-pinnedmenu="true" style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    onClick={() => setShowPinnedMenu(v => !v)}
+                    title="Menu pesan pin"
+                    style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #BFDBFE', background: '#fff', cursor: 'pointer', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+
+                  {showPinnedMenu && latestPinnedMessage && (
+                    <div style={{ position: 'absolute', top: 30, right: 0, width: 178, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.15)', padding: 6, zIndex: 210 }}>
+                      <button
+                        onClick={() => handleGoToMessage(latestPinnedMessage)}
+                        style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#374151', textAlign: 'left' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                      >
+                        <Link2 size={14} /> Pergi ke pesan
+                      </button>
+                      {canPin() && (
+                        <button
+                          onClick={() => handlePin(latestPinnedMessage)}
+                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#DC2626', textAlign: 'left' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                          <PinOff size={14} /> Lepas pin
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -736,7 +955,11 @@ export default function ChatPage() {
               {messages.map((msg, i) => {
                 const isMe = msg.user_id === user?.id;
                 const isImageMessage = isImageAttachment(msg.file_name || '', msg.file_type || '');
+                const replyPreview = getReplyPreviewData(msg);
                 const prevMsg = messages[i - 1];
+                const currentDateKey = getJakartaDateKey(parseUtcDate(msg.created_at) || new Date(0));
+                const previousDateKey = prevMsg ? getJakartaDateKey(parseUtcDate(prevMsg.created_at) || new Date(0)) : null;
+                const showDateSeparator = i === 0 || currentDateKey !== previousDateKey;
                 const showSender = !isMe && (i === 0 || prevMsg?.user_id !== msg.user_id);
                 const isHovered = hoveredMsgId === msg.id;
                 const isOpen = openDropdownId === msg.id;
@@ -744,36 +967,53 @@ export default function ChatPage() {
                 const textPayload = `${msg.content || ''} ${msg.file_name || ''}`.toLowerCase();
                 const matchesQuery = normalizedMessageSearch && textPayload.includes(normalizedMessageSearch);
                 const isActiveMatch = activeSearchMatchId === msg.id;
+                const isJumpedTarget = jumpedMessageId === msg.id;
                 const showCtrl = !selectionMode && (isHovered || isOpen);
 
                 return (
-                  <div
-                    key={msg.id}
-                    ref={(node) => { if (node) messageRefs.current[msg.id] = node; }}
-                    onMouseEnter={() => setHoveredMsgId(msg.id)}
-                    onMouseLeave={() => setHoveredMsgId(null)}
-                    onTouchStart={e => handleTouchStart(e, msg)}
-                    onTouchEnd={handleTouchEnd}
-                    onTouchMove={handleTouchEnd}
-                    onClick={() => {
-                      if (!selectionMode) return;
-                      setSelectedMessageIds(prev => (
-                        prev.includes(msg.id) ? prev.filter(id => id !== msg.id) : [...prev, msg.id]
-                      ));
-                    }}
-                    style={{
-                      display: 'flex',
-                      justifyContent: isMe ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: (i > 0 && prevMsg?.user_id !== msg.user_id) ? 14 : 2,
-                      padding: selectionMode ? '2px 6px' : 0,
-                      borderRadius: 10,
-                      background: selectionMode && isSelected ? '#E0E7FF' : 'transparent',
-                      outline: isActiveMatch ? '2px solid #93C5FD' : 'none',
-                      cursor: selectionMode ? 'pointer' : 'default',
-                    }}
-                  >
+                  <div key={msg.id}>
+                    {showDateSeparator && (
+                      <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 12px' }}>
+                        <span style={{
+                          padding: '5px 12px',
+                          borderRadius: 999,
+                          background: '#E5E7EB',
+                          color: '#4B5563',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        }}>
+                          {formatMessageGroupLabel(msg.created_at)}
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      ref={(node) => { if (node) messageRefs.current[msg.id] = node; }}
+                      onMouseEnter={() => setHoveredMsgId(msg.id)}
+                      onMouseLeave={() => setHoveredMsgId(null)}
+                      onTouchStart={e => handleTouchStart(e, msg)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchMove={handleTouchEnd}
+                      onClick={() => {
+                        if (!selectionMode) return;
+                        setSelectedMessageIds(prev => (
+                          prev.includes(msg.id) ? prev.filter(id => id !== msg.id) : [...prev, msg.id]
+                        ));
+                      }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isMe ? 'flex-end' : 'flex-start',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: (i > 0 && prevMsg?.user_id !== msg.user_id) ? 14 : 2,
+                        padding: selectionMode ? '2px 6px' : 0,
+                        borderRadius: 10,
+                        background: selectionMode && isSelected ? '#E0E7FF' : 'transparent',
+                        outline: (isActiveMatch || isJumpedTarget) ? '2px solid #93C5FD' : 'none',
+                        cursor: selectionMode ? 'pointer' : 'default',
+                      }}
+                    >
                     {/* Dropdown trigger — left of MY bubble */}
                     {!selectionMode && isMe && (
                       <div
@@ -821,27 +1061,11 @@ export default function ChatPage() {
                         </div>
                       )}
 
-                      {msg.reply_to_id && (
-                        <div style={{
-                          background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
-                          borderLeft: `3px solid ${isMe ? 'rgba(255,255,255,0.55)' : '#2563EB'}`,
-                          borderRadius: '6px 6px 0 0',
-                          padding: '5px 9px', marginBottom: -4, fontSize: 11,
-                          color: isMe ? 'rgba(255,255,255,0.82)' : '#6B7280',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          <span style={{ fontWeight: 600 }}>{msg.reply_username || 'Unknown'}: </span>
-                          {msg.reply_content}
-                        </div>
-                      )}
-
                       <div style={{
                         background: isMe ? 'linear-gradient(135deg, #1D4ED8, #2563EB)' : '#fff',
                         color: isMe ? '#fff' : '#1F2937',
                         padding: msg.file_url ? (isImageMessage ? 8 : '10px 12px') : '9px 13px',
-                        borderRadius: isMe
-                          ? (msg.reply_to_id ? '0 14px 4px 14px' : '14px 14px 4px 14px')
-                          : (msg.reply_to_id ? '0 14px 14px 4px' : '14px 14px 14px 4px'),
+                        borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                         fontSize: 14, lineHeight: 1.5,
                         border: isMe ? 'none' : '1px solid #F3F4F6',
                         wordBreak: 'break-word',
@@ -850,6 +1074,24 @@ export default function ChatPage() {
                           ? '0 0 0 2px #93C5FD'
                           : matchesQuery ? '0 0 0 1px #BFDBFE' : '0 1px 3px rgba(0,0,0,0.07)',
                       }}>
+                        {replyPreview && (
+                          <div style={{
+                            background: isMe ? 'rgba(255,255,255,0.12)' : '#F3F4F6',
+                            borderLeft: `3px solid ${isMe ? 'rgba(255,255,255,0.45)' : '#2563EB'}`,
+                            borderRadius: 8,
+                            padding: '6px 10px',
+                            marginBottom: 8,
+                            fontSize: 12,
+                            lineHeight: 1.3,
+                            color: isMe ? 'rgba(255,255,255,0.95)' : '#6B7280',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <span style={{ fontWeight: 700, color: isMe ? 'rgba(255,255,255,0.95)' : '#4B5563' }}>{replyPreview.username}: </span>
+                            {replyPreview.content}
+                          </div>
+                        )}
                         {!!msg.is_pinned && (
                           <div style={{ fontSize: 10, marginBottom: 3, color: isMe ? 'rgba(255,255,255,0.7)' : '#2563EB', display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Pin size={9} /> Pinned
@@ -980,6 +1222,7 @@ export default function ChatPage() {
                         )}
                       </div>
                     )}
+                    </div>
                   </div>
                 );
               })}

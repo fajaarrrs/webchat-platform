@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -83,6 +83,7 @@ function getFileInfo(name) {
 export default function ChatPage() {
   const { user, addToast } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const initialForumId = location.state?.forumId ?? null;
 
   const [forums, setForums] = useState([]);
@@ -368,12 +369,6 @@ export default function ChatPage() {
       const updated = await api.get('/forums');
       setForums(updated);
       
-      // Force navigation to the same page with new state to trigger a full clean remount/re-fetch
-      // This is often more reliable than just changing activeForumId in-place
-      import('react-router-dom').then(({ useNavigate }) => {
-        // Since we are inside the component, but handleJoinForum is async,
-        // we should just use the navigate we already have at the top level
-      });
       navigate(`/${user?.role}/chat`, { state: { forumId: data.forum_id }, replace: true });
       setActiveForumId(data.forum_id);
     } catch (err) {

@@ -9,49 +9,30 @@ import {
   TrendingUp,
   Activity,
   ArrowUpRight,
-  Upload,
   Clock3,
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../api';
 
-const recentActivity = [
-  { user: 'budi-webcare', action: 'Bergabung sebagai karyawan', time: '5 menit lalu', type: 'join' },
-  { user: 'Client #021', action: 'Memulai sesi chat baru', time: '12 menit lalu', type: 'chat' },
-  { user: 'admin', action: 'Generate link "Project X"', time: '1 jam lalu', type: 'link' },
-  { user: 'sari-webcare', action: 'Membuat posting forum baru', time: '2 jam lalu', type: 'forum' },
-  { user: 'Client #019', action: 'Sesi chat selesai', time: '3 jam lalu', type: 'done' },
-];
-
-const followUpItems = [
-  {
-    title: '2 chat butuh respons',
-    desc: 'Balas client yang belum mendapat jawaban.',
-    icon: Clock3,
-    color: '#2563EB',
-    bg: '#eff6ff',
-    to: '/admin/chat?filter=pending',
-  },
-  {
-    title: '1 bantuan upload file',
-    desc: 'Client meminta admin bantu upload dokumen.',
-    icon: Upload,
-    color: '#059669',
-    bg: '#ecfdf5',
-    to: '/admin/chat?filter=upload-request',
-  },
-  {
-    title: '3 link aktif hari ini',
-    desc: 'Pastikan akses room masih berjalan normal.',
-    icon: AlertCircle,
-    color: '#d97706',
-    bg: '#fffbeb',
-    to: '/admin/forum?filter=active-links',
-  },
-];
-
 const typeColor = { join: '#059669', chat: '#2563EB', link: '#7c3aed', forum: '#d97706', done: '#6B7280' };
 const typeBg = { join: '#ecfdf5', chat: '#eff6ff', link: '#f5f3ff', forum: '#fffbeb', done: '#f9fafb' };
+
+function toRelativeTime(dt) {
+  if (!dt) return '—';
+  const time = new Date(dt).getTime();
+  if (!Number.isFinite(time)) return '—';
+
+  const diffMs = Date.now() - time;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'baru saja';
+  if (minutes < 60) return `${minutes} menit lalu`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} hari lalu`;
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -61,6 +42,8 @@ export default function AdminDashboard() {
 
   const [stats, setStats] = useState({ totalUsers: 0, totalForums: 0, totalMessages: 0 });
   const [recentForums, setRecentForums] = useState([]);
+  const [followUpItems, setFollowUpItems] = useState([]);
+  const [activityItems, setActivityItems] = useState([]);
 
   useEffect(() => {
     Promise.all([api.get('/users'), api.get('/forums')])
@@ -72,8 +55,96 @@ export default function AdminDashboard() {
           totalMessages,
         });
         setRecentForums(forumsData.slice(0, 5));
+
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+
+        const nextFollowUps = forumsData
+          .flatMap((forum) => {
+            const messageCount = forum.message_count || 0;
+            const memberCount = forum.member_count || 0;
+            const lastActivityMs = forum.last_activity ? new Date(forum.last_activity).getTime() : NaN;
+
+            if (messageCount === 0) {
+              return [{
+                id: `no-message-${forum.id}`,
+                title: 'Forum belum ada pesan',
+                desc: `"${forum.title}" belum ada percakapan.`,
+                icon: Clock3,
+                color: '#2563EB',
+                bg: '#eff6ff',
+                to: { pathname: '/admin/chat' },
+                state: { forumId: forum.id },
+              }];
+            }
+
+            if (memberCount === 1) {
+              return [{
+                id: `admin-only-${forum.id}`,
+                title: 'Forum hanya Admin',
+                desc: `"${forum.title}" belum ditambah client/employee.`,
+                icon: Users,
+                color: '#7c3aed',
+                bg: '#f5f3ff',
+                to: { pathname: '/admin/chat' },
+                state: { forumId: forum.id },
+              }];
+            }
+
+            const isQuiet = Number.isFinite(lastActivityMs) && (now - lastActivityMs > oneDayMs);
+            if (isQuiet) {
+              return [{
+                id: `quiet-${forum.id}`,
+                title: 'Forum tidak aktif > 24 jam',
+                desc: `"${forum.title}" terakhir aktif kemarin.`,
+                icon: AlertCircle,
+                color: '#d97706',
+                bg: '#fffbeb',
+                to: { pathname: '/admin/chat' },
+                state: { forumId: forum.id },
+              }];
+            }
+
+            return [];
+          })
+          .slice(0, 3);
+
+        setFollowUpItems(nextFollowUps);
+
+        const events = forumsData
+          .flatMap((forum) => {
+            const forumEvents = [];
+            if (forum.created_at) {
+              forumEvents.push({
+                user: forum.creator_name || 'admin',
+                action: `Membuat forum "${forum.title}"`,
+                timeSource: forum.created_at,
+                type: 'forum',
+              });
+            }
+            if (forum.last_activity) {
+              forumEvents.push({
+                user: 'Sistem',
+                action: `Aktivitas terbaru di forum "${forum.title}"`,
+                timeSource: forum.last_activity,
+                type: 'chat',
+              });
+            }
+            return forumEvents;
+          })
+          .sort((a, b) => new Date(b.timeSource).getTime() - new Date(a.timeSource).getTime())
+          .slice(0, 5)
+          .map((event) => ({
+            ...event,
+            time: toRelativeTime(event.timeSource),
+          }));
+
+        setActivityItems(events);
       })
-      .catch(() => {});
+      .catch(() => {
+        setFollowUpItems([]);
+        setActivityItems([]);
+      });
   }, []);
 
   const statCards = [
@@ -82,11 +153,6 @@ export default function AdminDashboard() {
     { label: 'Total Pesan', value: stats.totalMessages, sub: 'All-time', icon: MessageSquare, color: '#059669', bg: '#ecfdf5' },
     { label: 'Forum Terbaru', value: recentForums[0]?.title || '—', sub: 'Forum terakhir', icon: TrendingUp, color: '#d97706', bg: '#fffbeb' },
   ];
-
-  const formatDate = (dt) => {
-    if (!dt) return '—';
-    return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
 
   return (
     <DashboardLayout>
@@ -121,16 +187,38 @@ export default function AdminDashboard() {
                 border: '1px solid #E5E7EB',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, margin: '0 0 6px' }}>{label}</p>
-                  <p style={{ fontSize: 30, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
+                  <div style={{ minHeight: 40 }}>
+                    {label === 'Forum Terbaru' ? (
+                      <p
+                        title={String(value)}
+                        style={{
+                          fontSize: 22,
+                          lineHeight: 1.2,
+                          fontWeight: 800,
+                          color: '#1F2937',
+                          margin: 0,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {value}
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: 30, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
+                    )}
+                  </div>
                   <p style={{ fontSize: 11, color: '#10B981', marginTop: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
                     <ArrowUpRight size={11} />
                     {sub}
                   </p>
                 </div>
-                <div style={{ background: bg, borderRadius: 12, padding: 10 }}>
+                <div style={{ background: bg, borderRadius: 12, padding: 10, flexShrink: 0 }}>
                   <Icon size={20} color={color} />
                 </div>
               </div>
@@ -156,55 +244,60 @@ export default function AdminDashboard() {
               </h3>
             </div>
 
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', 
-              gap: 14 
-            }}>
-              {followUpItems.map(({ title, desc, icon: Icon, color, bg, to }) => (
-                <Link
-                  key={title}
-                  to={to}
-                  style={{
-                    borderRadius: 12,
-                    padding: 16,
-                    background: '#F9FAFB',
-                    border: '1px solid #E5E7EB',
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    display: 'block',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#FFFFFF';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#F9FAFB';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <div
+
+            {followUpItems.length === 0 ? (
+              <div style={{ padding: '24px 8px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                Belum ada data yang perlu ditindaklanjuti.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+                {followUpItems.map(({ id, title, desc, icon: Icon, color, bg, to, state }) => (
+                  <Link
+                    key={id}
+                    to={to}
+                    state={state}
+
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      background: bg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 12,
+                      borderRadius: 12,
+                      padding: 16,
+                      background: '#F9FAFB',
+                      border: '1px solid #E5E7EB',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'block',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#FFFFFF';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#F9FAFB';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
-                    <Icon size={18} color={color} />
-                  </div>
-                  <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#1F2937' }}>{title}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>{desc}</p>
-                </Link>
-              ))}
-            </div>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 12,
+                      }}
+                    >
+                      <Icon size={18} color={color} />
+                    </div>
+                    <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#1F2937' }}>{title}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>{desc}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -224,34 +317,40 @@ export default function AdminDashboard() {
               <Activity size={17} color="#2563EB" />
               <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', margin: 0 }}>Aktivitas Terkini</h3>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {recentActivity.map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: '50%',
-                      flexShrink: 0,
-                      background: typeBg[item.type],
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: typeColor[item.type],
-                    }}
-                  >
-                    {item.user.slice(0, 2).toUpperCase()}
+            {activityItems.length === 0 ? (
+              <div style={{ padding: '24px 8px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                Belum ada aktivitas terbaru dari database.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {activityItems.map((item, i) => (
+                  <div key={`${item.action}-${item.time}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: typeBg[item.type] || '#f3f4f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: typeColor[item.type] || '#6B7280',
+                      }}
+                    >
+                      {(item.user || '??').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, color: '#1F2937', fontWeight: 600, margin: 0 }}>{item.user}</p>
+                      <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>{item.action}</p>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{item.time}</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, color: '#1F2937', fontWeight: 600, margin: 0 }}>{item.user}</p>
-                    <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>{item.action}</p>
-                  </div>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{item.time}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Aksi Cepat */}

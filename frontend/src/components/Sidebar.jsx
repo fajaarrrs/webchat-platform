@@ -68,7 +68,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+            background: '#1D4ED8',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
@@ -88,7 +88,7 @@ export default function Sidebar({ isOpen, onClose }) {
       }}>
         <div style={{
           width: 38, height: 38, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #2563EB, #7c3aed)',
+          background: '#2563EB',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0,
         }}>

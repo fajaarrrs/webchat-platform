@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import './SettingsPage.css';
+﻿import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
-import { Settings, User, Lock, Eye, EyeOff, Save, BadgeCheck, ShieldCheck, UserCircle, Users, Pencil, Trash2, X, Check } from 'lucide-react';
-import './SettingsPage.css';
+import { api, BASE_URL } from '../api';
+import { Settings, User, Lock, Eye, EyeOff, Save, BadgeCheck, ShieldCheck, UserCircle, Users, Pencil, Trash2, X, Check, Camera } from 'lucide-react';
+
 
 const roleBadge = {
   admin:    { label: 'Admin',    bg: '#ede9fe', color: '#6d28d9', Icon: ShieldCheck },
@@ -11,13 +12,21 @@ const roleBadge = {
   client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46', Icon: UserCircle },
 };
 
+const CROP_SIZE = 280;
+
 export default function SettingsPage() {
-  const { user, updateProfile, addToast } = useAuth();
+  const { user, updateProfile, uploadAvatar, deleteAvatar, addToast } = useAuth();
   const [tab, setTab] = useState('profile');
   const [profileForm, setProfileForm] = useState({ username: user?.username || '', email: user?.email || '' });
   const [passForm, setPassForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [cropState, setCropState] = useState(null); // { file, objectUrl, naturalW, naturalH, scale, offsetX, offsetY }
+  const [isDragging, setIsDragging] = useState(false);
+  const avatarInputRef = useRef(null);
+  const profileAvatarInputRef = useRef(null);
+  const dragStartRef = useRef(null);
 
   // Admin users management
   const [users, setUsers] = useState([]);
@@ -46,6 +55,114 @@ export default function SettingsPage() {
         .finally(() => setUsersLoading(false));
     }
   }, [tab]);
+
+  const clampOffset = (val, imgDim) => Math.min(0, Math.max(CROP_SIZE - imgDim, val));
+
+  const openCropModal = (file) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const fitScale = Math.max(CROP_SIZE / img.naturalWidth, CROP_SIZE / img.naturalHeight);
+      const imgW = img.naturalWidth * fitScale;
+      const imgH = img.naturalHeight * fitScale;
+      setCropState({
+        file, objectUrl,
+        naturalW: img.naturalWidth, naturalH: img.naturalHeight,
+        scale: fitScale,
+        offsetX: (CROP_SIZE - imgW) / 2,
+        offsetY: (CROP_SIZE - imgH) / 2,
+      });
+    };
+    img.src = objectUrl;
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    openCropModal(file);
+    e.target.value = '';
+  };
+
+  const handleCropDragStart = (e) => {
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartRef.current = { clientX, clientY, offsetX: cropState.offsetX, offsetY: cropState.offsetY };
+    setIsDragging(true);
+  };
+
+  const handleCropDragMove = (e) => {
+    if (!isDragging || !dragStartRef.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - dragStartRef.current.clientX;
+    const dy = clientY - dragStartRef.current.clientY;
+    setCropState(prev => {
+      if (!prev) return prev;
+      const imgW = prev.naturalW * prev.scale;
+      const imgH = prev.naturalH * prev.scale;
+      return {
+        ...prev,
+        offsetX: clampOffset(dragStartRef.current.offsetX + dx, imgW),
+        offsetY: clampOffset(dragStartRef.current.offsetY + dy, imgH),
+      };
+    });
+  };
+
+  const handleCropDragEnd = () => { setIsDragging(false); dragStartRef.current = null; };
+
+  const handleZoom = (newScale) => {
+    setCropState(prev => {
+      if (!prev) return prev;
+      const imgW = prev.naturalW * newScale;
+      const imgH = prev.naturalH * newScale;
+      const ratioX = (CROP_SIZE / 2 - prev.offsetX) / (prev.naturalW * prev.scale);
+      const ratioY = (CROP_SIZE / 2 - prev.offsetY) / (prev.naturalH * prev.scale);
+      return {
+        ...prev, scale: newScale,
+        offsetX: clampOffset(CROP_SIZE / 2 - ratioX * imgW, imgW),
+        offsetY: clampOffset(CROP_SIZE / 2 - ratioY * imgH, imgH),
+      };
+    });
+  };
+
+  const handleCropConfirm = () => {
+    if (!cropState) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = CROP_SIZE;
+    canvas.height = CROP_SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.beginPath();
+    ctx.arc(CROP_SIZE / 2, CROP_SIZE / 2, CROP_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+    const img = new Image();
+    img.onload = () => {
+      const imgW = cropState.naturalW * cropState.scale;
+      const imgH = cropState.naturalH * cropState.scale;
+      ctx.drawImage(img, cropState.offsetX, cropState.offsetY, imgW, imgH);
+      canvas.toBlob(async (blob) => {
+        const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+        URL.revokeObjectURL(cropState.objectUrl);
+        setCropState(null);
+        setAvatarUploading(true);
+        await uploadAvatar(croppedFile);
+        setAvatarUploading(false);
+      }, 'image/png');
+    };
+    img.src = cropState.objectUrl;
+  };
+
+  const handleCropCancel = () => {
+    if (cropState) URL.revokeObjectURL(cropState.objectUrl);
+    setCropState(null);
+    setIsDragging(false);
+  };
+
+  const handleDeleteAvatar = async () => {
+    setAvatarUploading(true);
+    await deleteAvatar();
+    setAvatarUploading(false);
+  };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -100,6 +217,7 @@ export default function SettingsPage() {
   };
 
   return (
+    <>
     <DashboardLayout>
       <div style={{ padding: '32px 36px', maxWidth: 780 }}>
         {/* Header */}
@@ -114,13 +232,45 @@ export default function SettingsPage() {
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
           marginBottom: 20, display: 'flex', alignItems: 'center', gap: 20,
         }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #1D4ED8, #7c3aed)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22, fontWeight: 700, color: '#fff', flexShrink: 0,
-          }}>
-            {initials}
+          {/* Avatar with camera overlay */}
+          <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+            {user?.avatar ? (
+              <img
+                src={`${BASE_URL}${user.avatar}`}
+                alt="avatar"
+                style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: '#1D4ED8',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 22, fontWeight: 700, color: '#fff',
+              }}>
+                {initials}
+              </div>
+            )}
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              title="Ganti foto profil"
+              style={{
+                position: 'absolute', bottom: 0, right: 0,
+                width: 22, height: 22, borderRadius: '50%',
+                background: '#1D4ED8', border: '2px solid #fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: avatarUploading ? 'wait' : 'pointer', padding: 0,
+              }}
+            >
+              <Camera size={11} color="#fff" />
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleAvatarChange}
+            />
           </div>
           <div>
             <p style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>{user?.username}</p>
@@ -160,6 +310,68 @@ export default function SettingsPage() {
           <div style={{ background: '#fff', borderRadius: 14, padding: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB' }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 20 }}>Edit Profil</h2>
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Photo upload section */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  {user?.avatar ? (
+                    <img
+                      src={`${BASE_URL}${user.avatar}`}
+                      alt="avatar"
+                      style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 56, height: 56, borderRadius: '50%',
+                      background: '#1D4ED8',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 18, fontWeight: 700, color: '#fff',
+                    }}>
+                      {initials}
+                    </div>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', margin: '0 0 4px' }}>Foto Profil</p>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', margin: '0 0 10px' }}>JPG, PNG, atau GIF. Maks 5 MB.</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => profileAvatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 6, border: '1.5px solid #D1D5DB',
+                        background: '#fff', color: '#374151', fontSize: 12, fontWeight: 600,
+                        cursor: avatarUploading ? 'wait' : 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      <Camera size={13} />{avatarUploading ? 'Mengunggah...' : 'Pilih Foto'}
+                    </button>
+                    {user?.avatar && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteAvatar}
+                        disabled={avatarUploading}
+                        style={{
+                          padding: '6px 14px', borderRadius: 6, border: '1.5px solid #fca5a5',
+                          background: '#fef2f2', color: '#ef4444', fontSize: 12, fontWeight: 600,
+                          cursor: avatarUploading ? 'wait' : 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                        }}
+                      >
+                        <Trash2 size={13} /> Hapus Foto
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={profileAvatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleAvatarChange}
+                  />
+                </div>
+              </div>
               {[
                 { label: 'Username', field: 'username', type: 'text' },
                 { label: 'Email',    field: 'email',    type: 'email' },
@@ -188,7 +400,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={saving} style={{
                   padding: '10px 22px', borderRadius: 8, border: 'none',
-                  background: saving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                  background: saving ? '#93c5fd' : '#1D4ED8',
                   color: '#fff', fontWeight: 600, fontSize: 14,
                   cursor: saving ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -236,7 +448,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={saving} style={{
                   padding: '10px 22px', borderRadius: 8, border: 'none',
-                  background: saving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                  background: saving ? '#93c5fd' : '#1D4ED8',
                   color: '#fff', fontWeight: 600, fontSize: 14,
                   cursor: saving ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -364,7 +576,7 @@ export default function SettingsPage() {
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button type="button" onClick={() => setEditingUser(null)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Batal</button>
-                <button type="submit" disabled={editSaving} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: editSaving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer' }}>
+                <button type="submit" disabled={editSaving} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: editSaving ? '#93c5fd' : '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer' }}>
                   {editSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
@@ -373,5 +585,112 @@ export default function SettingsPage() {
         </div>
       )}
     </DashboardLayout>
+
+    {/* ── Avatar Crop Modal ── */}
+    {cropState && (() => {
+      const minScale = Math.max(CROP_SIZE / cropState.naturalW, CROP_SIZE / cropState.naturalH);
+      const maxScale = minScale * 4;
+      return (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+          onMouseMove={handleCropDragMove}
+          onMouseUp={handleCropDragEnd}
+          onMouseLeave={handleCropDragEnd}
+          onTouchMove={handleCropDragMove}
+          onTouchEnd={handleCropDragEnd}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: 20, padding: '28px 32px 28px', width: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', userSelect: 'none' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>Atur Foto Profil</h2>
+                <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 0' }}>Geser gambar &amp; atur ukuran lingkaran</p>
+              </div>
+              <button onClick={handleCropCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Circular crop area */}
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0 16px' }}>
+              <div style={{ position: 'relative' }}>
+                {/* Crop circle (overflow hidden = circular clip) */}
+                <div
+                  onMouseDown={handleCropDragStart}
+                  onTouchStart={handleCropDragStart}
+                  style={{
+                    width: CROP_SIZE, height: CROP_SIZE,
+                    borderRadius: '50%', overflow: 'hidden',
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    background: '#E5E7EB', position: 'relative',
+                    boxShadow: '0 0 0 4px #fff, 0 0 0 6px #2563EB',
+                  }}
+                >
+                  <img
+                    src={cropState.objectUrl}
+                    draggable={false}
+                    alt="crop preview"
+                    style={{
+                      position: 'absolute',
+                      width: cropState.naturalW * cropState.scale,
+                      height: cropState.naturalH * cropState.scale,
+                      left: cropState.offsetX,
+                      top: cropState.offsetY,
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                    }}
+                  />
+                </div>
+                {/* Preview label */}
+                <p style={{ textAlign: 'center', fontSize: 11, color: '#9CA3AF', marginTop: 10 }}>Pratinjau</p>
+              </div>
+            </div>
+
+            {/* Zoom slider */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Perbesar</label>
+                <span style={{ fontSize: 11, color: '#6B7280' }}>{(cropState.scale / minScale).toFixed(1)}x</span>
+              </div>
+              <input
+                type="range"
+                min={minScale}
+                max={maxScale}
+                step={(maxScale - minScale) / 100}
+                value={cropState.scale}
+                onChange={e => handleZoom(parseFloat(e.target.value))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#2563EB' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span style={{ fontSize: 10, color: '#D1D5DB' }}>Min</span>
+                <span style={{ fontSize: 10, color: '#D1D5DB' }}>Maks</span>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleCropCancel}
+                style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+              >
+                Batalkan
+              </button>
+              <button
+                type="button"
+                onClick={handleCropConfirm}
+                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Gunakan Foto
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+    </>
   );
 }

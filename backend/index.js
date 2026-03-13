@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 
 const { initDatabase, db } = require('./database');
+const { emitForumPreviewUpdates, markActiveViewersAsRead, markForumAsRead } = require('./forumState');
 const authRoutes = require('./routes/auth');
 const forumRoutes = require('./routes/forums');
 const messageRoutes = require('./routes/messages');
@@ -27,6 +28,7 @@ const io = new Server(server, {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.set('io', io);
 
 // Init DB (creates tables + seeds admin)
 initDatabase();
@@ -53,6 +55,7 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   console.log(`🟢 Connected: ${socket.user.username} (${socket.id})`);
+  socket.join(`user:${socket.user.id}`);
 
   // Join a forum room (verify membership first)
   socket.on('join_forum', (forumId) => {
@@ -63,6 +66,8 @@ io.on('connection', (socket) => {
         .get(fid, socket.user.id);
     if (allowed) {
       socket.join(`forum:${fid}`);
+      markForumAsRead(fid, socket.user.id);
+      emitForumPreviewUpdates(io, fid);
     }
   });
 
@@ -90,7 +95,7 @@ io.on('connection', (socket) => {
     ).run(fid, socket.user.id, content.trim(), replyId);
 
     const message = db.prepare(`
-      SELECT m.id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
+      SELECT m.id, m.forum_id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
              m.file_url, m.file_name, m.file_size, m.file_type,
              u.id as user_id, u.username, u.role,
              rm.content as reply_content, ru.username as reply_username
@@ -102,7 +107,9 @@ io.on('connection', (socket) => {
     `).get(result.lastInsertRowid);
 
     // Broadcast to everyone in the room (including sender)
+    markActiveViewersAsRead(io, fid);
     io.to(`forum:${fid}`).emit('new_message', message);
+    emitForumPreviewUpdates(io, fid);
   });
 
   // Delete a message
@@ -117,6 +124,7 @@ io.on('connection', (socket) => {
 
     db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
     io.to(`forum:${fid}`).emit('message_deleted', { messageId: mid, forumId: fid });
+    emitForumPreviewUpdates(io, fid);
   });
 
   // Pin / unpin a message (admin only)

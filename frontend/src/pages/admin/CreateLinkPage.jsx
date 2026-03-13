@@ -236,11 +236,17 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
+                  maxLength={15}
                   value={form.title}
                   placeholder="contoh: Support Pelanggan Q1"
                   className="link-input"
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
+                {form.title.length > 0 && (
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.title.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.title.length}/15
+                  </div>
+                )}
               </div>
 
               <div>
@@ -250,11 +256,17 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
+                  maxLength={15}
                   value={form.project}
                   placeholder="contoh: Project Alpha"
                   className="link-input"
                   onChange={(e) => setForm({ ...form, project: e.target.value })}
                 />
+                {form.project.length > 0 && (
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.project.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.project.length}/15
+                  </div>
+                )}
               </div>
             </div>
 

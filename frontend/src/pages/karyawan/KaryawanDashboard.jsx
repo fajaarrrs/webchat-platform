@@ -16,12 +16,13 @@ const statusStyle = {
 
 export default function KaryawanDashboard() {
   const { user } = useAuth();
+  const isMobile = window.innerWidth <= 768;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 900 }}>
+      <div style={{ padding: isMobile ? '20px 16px' : '32px 36px', maxWidth: 900 }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>
             {greeting}, {user?.username}! 👋
@@ -32,7 +33,12 @@ export default function KaryawanDashboard() {
         </div>
 
         {/* Stat mini */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
+          gap: 14, 
+          marginBottom: 28 
+        }}>
           {[
             { label: 'Chat Aktif',    value: '2', icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
             { label: 'Menunggu',      value: '1', icon: Clock,         color: '#d97706', bg: '#fffbeb' },

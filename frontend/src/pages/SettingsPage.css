@@ -1,0 +1,29 @@
+/* Table Container for Responsiveness */
+.table-responsive-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* for smooth scrolling on iOS */
+  display: block;
+  width: 100%;
+}
+
+/* Ensure table itself has a minimum width to prevent columns from crushing */
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* Forces horizontal scroll if screen width < 600px */
+}
+
+/* --- Media Queries --- */
+
+/* Tablet and below */
+@media (max-width: 1024px) {
+  /* No special changes needed, the wrapper naturally handles it */
+}
+
+/* Mobile Devices */
+@media (max-width: 768px) {
+  .table-responsive-wrapper {
+    /* Optional: Add borders or distinct shadows at edges if needed */
+    border-top: 1px solid #F3F4F6;
+  }
+}

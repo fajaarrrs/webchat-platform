@@ -1,9 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { MessagesSquare, Search, MessageSquare, Users, Clock, Link2, UserPlus, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
+import './ForumPage.css'; // Responsive styling using CSS Grid and Media Queries
 
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
 
@@ -50,12 +51,12 @@ export default function ForumPage() {
   };
 
   const formatDate = (dt) => {
-    if (!dt) return 'â€”';
+    if (!dt) return '—';
     return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatRelative = (dt) => {
-    if (!dt) return 'â€”';
+    if (!dt) return '—';
     const diff = Date.now() - new Date(dt).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Baru saja';
@@ -72,67 +73,46 @@ export default function ForumPage() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 1000 }}>
+      <div className="forum-page-container">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div className="forum-header">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div className="forum-title-group">
               <MessagesSquare size={20} color="#2563EB" />
-              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Forum</h1>
+              <h1 className="forum-title">Forum</h1>
             </div>
-            <p style={{ color: '#6B7280', fontSize: 14 }}>
+            <p className="forum-subtitle">
               {user?.role === 'admin'
                 ? 'Semua forum chat yang telah dibuat.'
                 : 'Forum yang kamu ikuti. Klik untuk membuka chat.'}
             </p>
           </div>
+
           {user?.role === 'admin' && (
             <button
               onClick={() => navigate('/admin/create-link')}
-              style={{
-                padding: '10px 18px', borderRadius: 8, border: 'none',
-                background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                color: '#fff', fontWeight: 600, fontSize: 14,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              }}
+              className="btn-primary"
             >
               <Link2 size={15} /> Buat Forum
-            </button>
-          )}
-          {user?.role !== 'admin' && (
-            <button
-              onClick={() => setShowJoinModal(true)}
-              style={{
-                padding: '10px 18px', borderRadius: 8, border: 'none',
-                background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                color: '#fff', fontWeight: 600, fontSize: 14,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              }}
-            >
-              <UserPlus size={15} /> Tambah Forum
             </button>
           )}
         </div>
 
         {/* Search */}
-        <div style={{ position: 'relative', marginBottom: 24, maxWidth: 360 }}>
-          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+        <div className="search-container">
+          <Search size={14} className="search-icon" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Cari forum atau project..."
-            style={{
-              width: '100%', padding: '10px 12px 10px 36px',
-              border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14,
-              outline: 'none', boxSizing: 'border-box', background: '#fff',
-            }}
-            onFocus={e => e.target.style.borderColor = '#2563EB'}
-            onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+            className="search-input"
           />
         </div>
 
         {/* Forum Cards */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF', fontSize: 14 }}>Memuat forum...</div>
+          <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF', fontSize: 14 }}>
+            Memuat forum...
+          </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 0', color: '#9CA3AF' }}>
             <MessagesSquare size={44} style={{ margin: '0 auto 14px', display: 'block', opacity: 0.3 }} />
@@ -142,63 +122,49 @@ export default function ForumPage() {
             {!search && user?.role !== 'admin' && (
               <>
                 <p style={{ fontSize: 13, marginBottom: 16 }}>Gunakan link dari admin, atau klik tombol di bawah.</p>
-                <button
-                  onClick={() => setShowJoinModal(true)}
-                  style={{
-                    padding: '10px 20px', borderRadius: 8, border: 'none',
-                    background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                    color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                  }}
-                >
+                <button onClick={() => setShowJoinModal(true)} className="btn-primary" style={{ margin: '0 auto' }}>
                   <UserPlus size={14} /> Tambah Forum
                 </button>
               </>
             )}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="forum-grid">
             {filtered.map((forum, idx) => {
               const accent = forumColors[idx % forumColors.length];
               return (
                 <div
                   key={forum.id}
-                  style={{
-                    background: '#fff', borderRadius: 14, padding: 22,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
-                    cursor: 'pointer', transition: 'all 0.2s',
-                    borderTop: `3px solid ${accent}`,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'}
+                  className="forum-card"
+                  style={{ borderTop: `3px solid ${accent}` }}
                   onClick={() => handleOpenChat(forum)}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                    <span style={{
-                      background: `${accent}18`, color: accent,
-                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
+                  <div className="forum-card-header">
+                    <span 
+                      className="forum-badge"
+                      style={{ background: `${accent}18`, color: accent }}
+                    >
                       {forum.project}
                     </span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <span className="forum-time">
                       <Clock size={11} /> {formatRelative(forum.last_activity)}
                     </span>
                   </div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
-                    {forum.title}
-                  </h3>
-                  <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14, lineHeight: 1.5, minHeight: 38 }}>
+
+                  <h3 className="forum-card-title">{forum.title}</h3>
+                  
+                  <p className="forum-card-desc">
                     {forum.description || <em>Tidak ada deskripsi.</em>}
                   </p>
-                  <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
-                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+
+                  <div className="forum-card-footer">
+                    <span className="forum-stat">
                       <Users size={12} /> {forum.member_count ?? 0} anggota
                     </span>
-                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className="forum-stat">
                       <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
                     </span>
-                    <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
+                    <span className="forum-date">
                       {formatDate(forum.created_at)}
                     </span>
                   </div>
@@ -215,15 +181,22 @@ export default function ForumPage() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={e => { if (e.target === e.currentTarget) { setShowJoinModal(false); setJoinLink(''); } }}
         >
-          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', margin: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ background: '#eff6ff', borderRadius: 10, padding: 8 }}><Link2 size={18} color="#2563EB" /></div>
                 <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>Gabung Forum</h2>
               </div>
-              <button onClick={() => { setShowJoinModal(false); setJoinLink(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
+              <button 
+                onClick={() => { setShowJoinModal(false); setJoinLink(''); }} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}
+              >
+                <X size={20} />
+              </button>
             </div>
-            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Paste link atau token yang dikirim admin untuk bergabung ke forum chat.</p>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
+              Paste link atau token yang dikirim admin untuk bergabung ke forum chat.
+            </p>
             <form onSubmit={handleJoinForum}>
               <input
                 value={joinLink}
@@ -239,12 +212,25 @@ export default function ForumPage() {
                 onBlur={e => e.target.style.borderColor = '#E5E7EB'}
               />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" onClick={() => { setShowJoinModal(false); setJoinLink(''); }}
+                <button 
+                  type="button" 
+                  onClick={() => { setShowJoinModal(false); setJoinLink(''); }}
                   style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, cursor: 'pointer' }}
-                >Batal</button>
-                <button type="submit" disabled={joinLoading || !joinLink.trim()}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: joinLoading || !joinLink.trim() ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: joinLoading || !joinLink.trim() ? 'not-allowed' : 'pointer' }}
-                >{joinLoading ? 'Bergabung...' : 'Gabung'}</button>
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={joinLoading || !joinLink.trim()}
+                  style={{ 
+                    flex: 1, padding: '10px', borderRadius: 8, border: 'none', 
+                    background: joinLoading || !joinLink.trim() ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', 
+                    color: '#fff', fontSize: 14, fontWeight: 600, 
+                    cursor: joinLoading || !joinLink.trim() ? 'not-allowed' : 'pointer' 
+                  }}
+                >
+                  {joinLoading ? 'Bergabung...' : 'Gabung'}
+                </button>
               </div>
             </form>
           </div>

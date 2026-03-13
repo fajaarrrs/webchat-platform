@@ -55,6 +55,7 @@ const typeBg = { join: '#ecfdf5', chat: '#eff6ff', link: '#f5f3ff', forum: '#fff
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const isMobile = window.innerWidth <= 768;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
 
@@ -89,10 +90,10 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: isMobile ? '20px 16px' : '32px 36px', width: '100%' }}>
         {/* Page Header */}
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
             {greeting}, {user?.username}! 👋
           </h1>
           <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
@@ -104,7 +105,7 @@ export default function AdminDashboard() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 16,
             marginBottom: 28,
           }}
@@ -155,7 +156,11 @@ export default function AdminDashboard() {
               </h3>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', 
+              gap: 14 
+            }}>
               {followUpItems.map(({ title, desc, icon: Icon, color, bg, to }) => (
                 <Link
                   key={title}
@@ -204,7 +209,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bottom Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
           {/* Aktivitas Terkini */}
           <div
             style={{

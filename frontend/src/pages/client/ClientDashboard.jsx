@@ -9,10 +9,11 @@ const myHistory = [
 
 export default function ClientDashboard() {
   const { user } = useAuth();
+  const isMobile = window.innerWidth <= 768;
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 860 }}>
+      <div style={{ padding: isMobile ? '20px 16px' : '32px 36px', maxWidth: 860 }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>
             Halo, {user?.username}! 👋
@@ -25,8 +26,10 @@ export default function ClientDashboard() {
         {/* CTA Banner */}
         <div style={{
           background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-          borderRadius: 14, padding: '24px 28px', marginBottom: 24,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderRadius: 14, padding: isMobile ? '20px' : '24px 28px', marginBottom: 24,
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'flex-start' : 'center', 
+          justifyContent: 'space-between', gap: isMobile ? 16 : 0,
         }}>
           <div>
             <h2 style={{ color: '#fff', fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
@@ -47,7 +50,12 @@ export default function ClientDashboard() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
+          gap: 14, 
+          marginBottom: 24 
+        }}>
           {[
             { label: 'Sesi Aktif',   value: '1', icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
             { label: 'Sesi Pending', value: '0', icon: Clock,         color: '#d97706', bg: '#fffbeb' },

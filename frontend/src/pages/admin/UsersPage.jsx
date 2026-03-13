@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../api';
+import { api, BASE_URL } from '../../api';
 import {
   Users,
   Search,
@@ -122,7 +122,7 @@ export default function UsersPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <Users size={20} color="#2563EB" />
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
-              Manajemen Users
+              Manajemen User
             </h1>
           </div>
           <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>
@@ -383,7 +383,6 @@ export default function UsersPage() {
                               width: 38,
                               height: 38,
                               borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #2563EB, #7c3aed)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -391,9 +390,19 @@ export default function UsersPage() {
                               fontWeight: 700,
                               color: '#fff',
                               flexShrink: 0,
+                              overflow: 'hidden',
+                              background: '#2563EB',
                             }}
                           >
-                            {u.username.slice(0, 2).toUpperCase()}
+                            {u.avatar ? (
+                              <img
+                                src={`${BASE_URL}${u.avatar}`}
+                                alt={u.username}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              u.username.slice(0, 2).toUpperCase()
+                            )}
                           </div>
 
                           <div>
@@ -703,7 +712,7 @@ export default function UsersPage() {
                     flex: 1,
                     padding: '11px',
                     border: 'none',
-                    background: editSaving ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                    background: editSaving ? '#93c5fd' : '#1D4ED8',
                     color: '#fff',
                     fontSize: 14,
                     fontWeight: 700,

@@ -58,98 +58,98 @@ export default function KaryawanDashboard() {
 
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 900 }}>
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>
-            {greeting}, {user?.username}! 👋
-          </h1>
-          <p style={{ color: '#6B7280', fontSize: 14, marginTop: 4 }}>
-            Berikut status antrian chat kamu hari ini.
-          </p>
-        </div>
-
-        {/* Stat mini */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
-          {[
-            { label: 'Chat Aktif', value: stats.activeCount, icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
-            { label: 'Menunggu', value: stats.pendingCount, icon: Clock, color: '#d97706', bg: '#fffbeb' },
-            { label: 'Ditangani Hari Ini', value: stats.handledTodayCount, icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} style={{
-              background: '#fff', borderRadius: 12, padding: '18px 20px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
-              display: 'flex', alignItems: 'center', gap: 14,
-            }}>
-              <div style={{ background: bg, borderRadius: 10, padding: 10 }}>
-                <Icon size={20} color={color} />
-              </div>
-              <div>
-                <p style={{ fontSize: 22, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
-                <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>{label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* My Chats */}
-        <div style={{
-          background: '#fff', borderRadius: 12, padding: 24,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Inbox size={17} color="#2563EB" />
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Antrian Chat Saya</h3>
-            </div>
-            <a href="/karyawan/chat" style={{ fontSize: 13, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              Lihat Semua <ArrowUpRight size={13} />
-            </a>
+      <div style={{ padding: '32px 36px', width: '100%' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ marginBottom: 28 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+              {greeting}, {user?.username}! 👋
+            </h1>
+            <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
+              Berikut status antrian chat kamu hari ini.
+            </p>
           </div>
-          {loading ? (
-            <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-              Memuat antrian chat...
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
+            {[
+              { label: 'Chat Aktif', value: stats.activeCount, icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
+              { label: 'Menunggu', value: stats.pendingCount, icon: Clock, color: '#d97706', bg: '#fffbeb' },
+              { label: 'Ditangani Hari Ini', value: stats.handledTodayCount, icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <div key={label} style={{
+                background: '#fff', borderRadius: 14, padding: '20px 22px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
+                display: 'flex', alignItems: 'center', gap: 14, minHeight: 94,
+              }}>
+                <div style={{ background: bg, borderRadius: 12, padding: 12 }}>
+                  <Icon size={20} color={color} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
+                  <p style={{ fontSize: 12, color: '#6B7280', margin: '2px 0 0' }}>{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: 24,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Inbox size={17} color="#2563EB" />
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1F2937', margin: 0 }}>Antrian Chat Saya</h3>
+              </div>
+              <a href="/karyawan/chat" style={{ fontSize: 13, color: '#2563EB', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                Lihat Semua <ArrowUpRight size={13} />
+              </a>
             </div>
-          ) : queue.length === 0 ? (
-            <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-              Belum ada chat yang masuk dari database.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {queue.map((chat) => {
-                const s = statusStyle[chat.status] || statusStyle.pending;
-                return (
-                  <div key={chat.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', borderRadius: 8,
-                    border: '1px solid #F3F4F6', background: '#FAFAFA',
-                  }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%',
-                      background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, color: '#2563EB', flexShrink: 0,
+            {loading ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                Memuat antrian chat...
+              </div>
+            ) : queue.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                Belum ada chat yang masuk dari database.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {queue.map((chat) => {
+                  const s = statusStyle[chat.status] || statusStyle.pending;
+                  return (
+                    <div key={chat.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '14px 16px', borderRadius: 10,
+                      border: '1px solid #F3F4F6', background: '#FAFAFA',
                     }}>
-                      {chat.client_name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>{chat.client_name}</span>
-                        <span style={{ fontSize: 11, color: '#6B7280' }}>· {chat.project}</span>
+                      <div style={{
+                        width: 42, height: 42, borderRadius: '50%',
+                        background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, color: '#2563EB', flexShrink: 0,
+                      }}>
+                        {chat.client_name.slice(0, 2).toUpperCase()}
                       </div>
-                      <p style={{ fontSize: 12, color: '#6B7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {chat.last_preview}
-                      </p>
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1F2937' }}>{chat.client_name}</span>
+                          <span style={{ fontSize: 11, color: '#6B7280' }}>· {chat.project}</span>
+                        </div>
+                        <p style={{ fontSize: 12, color: '#6B7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {chat.last_preview}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                        <span style={{ fontSize: 10, color: '#9CA3AF' }}>{formatRelativeTime(chat.last_activity)}</span>
+                        <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99 }}>
+                          {s.label}
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, color: '#9CA3AF' }}>{formatRelativeTime(chat.last_activity)}</span>
-                      <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>
-                        {s.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </DashboardLayout>

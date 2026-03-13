@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
     ).run(fid, socket.user.id, content.trim(), replyId);
 
     const message = db.prepare(`
-      SELECT m.id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
+      SELECT m.id, m.forum_id, m.content, m.created_at, m.is_pinned, m.reply_to_id,
              m.file_url, m.file_name, m.file_size, m.file_type,
              u.id as user_id, u.username, u.role,
              rm.content as reply_content, ru.username as reply_username

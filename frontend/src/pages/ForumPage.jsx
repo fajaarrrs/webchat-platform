@@ -93,16 +93,12 @@ export default function ForumPage() {
   };
 
   const formatDate = (dt) => {
-    if (!dt) return '—';
-    return new Date(dt).toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    if (!dt) return 'â€”';
+    return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatRelative = (dt) => {
-    if (!dt) return '—';
+    if (!dt) return 'â€”';
     const diff = Date.now() - new Date(dt).getTime();
     const mins = Math.floor(diff / 60000);
 
@@ -555,123 +551,37 @@ export default function ForumPage() {
                     transition: 'transform 0.18s ease, box-shadow 0.18s ease',
                     background: '#fff',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.07)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)';
-                  }}
+                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'}
                 >
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 0.8fr) auto',
-                      gap: 18,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <span
-                          style={{
-                            background: `${accent}14`,
-                            color: accent,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            padding: '5px 10px',
-                            borderRadius: 999,
-                          }}
-                        >
-                          {forum.project}
-                        </span>
-                      </div>
-
-                      <h3
-                        style={{
-                          fontSize: 16,
-                          fontWeight: 800,
-                          color: '#1F2937',
-                          margin: '0 0 6px',
-                        }}
-                      >
-                        {forum.title}
-                      </h3>
-
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: '#6B7280',
-                          margin: 0,
-                          lineHeight: 1.5,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {forum.description || 'Tidak ada deskripsi.'}
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: '#6B7280',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                        }}
-                      >
-                        <Users size={12} /> {forum.member_count ?? 0} anggota
-                      </span>
-
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: '#6B7280',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                        }}
-                      >
-                        <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
-                      </span>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          gap: 4,
-                          color: '#9CA3AF',
-                          fontSize: 11,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <Clock size={11} />
-                        {formatRelative(forum.last_activity)}
-                      </div>
-
-                      <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 6 }}>
-                        {formatDate(forum.created_at)}
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          color: '#2563EB',
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
-                      </div>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <span style={{
+                      background: `${accent}18`, color: accent,
+                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                      maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {forum.project}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      <Clock size={11} /> {formatRelative(forum.last_activity)}
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
+                    {forum.title}
+                  </h3>
+                  <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14, lineHeight: 1.5, minHeight: 38 }}>
+                    {forum.description || <em>Tidak ada deskripsi.</em>}
+                  </p>
+                  <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
+                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Users size={12} /> {forum.member_count ?? 0} anggota
+                    </span>
+                    <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
+                    </span>
+                    <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>
+                      {formatDate(forum.created_at)}
+                    </span>
                   </div>
                 </button>
               );

@@ -56,14 +56,14 @@ router.post('/login', (req, res) => {
 
   res.json({
     token,
-    user: { id: user.id, username: user.username, email: user.email, role: user.role },
+    user: { id: user.id, username: user.username, email: user.email, role: user.role, avatar: user.avatar || null },
   });
 });
 
 // GET /api/auth/me — verify token & return fresh user data
 router.get('/me', authenticate, (req, res) => {
   const user = db.prepare(
-    'SELECT id, username, email, role FROM users WHERE id = ?'
+    'SELECT id, username, email, role, avatar FROM users WHERE id = ?'
   ).get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User tidak ditemukan.' });
   res.json(user);

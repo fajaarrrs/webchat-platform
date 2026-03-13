@@ -57,6 +57,11 @@ function initDatabase() {
   `);
 
   // Migrations for existing databases
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!userCols.includes('avatar')) {
+    db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+  }
+
   const msgCols = db.prepare('PRAGMA table_info(messages)').all().map(c => c.name);
   if (!msgCols.includes('is_pinned')) {
     db.exec('ALTER TABLE messages ADD COLUMN is_pinned INTEGER DEFAULT 0');

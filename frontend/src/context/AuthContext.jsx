@@ -70,10 +70,36 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const uploadAvatar = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const updated = await api.upload('/users/me/avatar', formData);
+      setUser(updated);
+      addToast('Foto profil berhasil diperbarui.', 'success');
+      return { success: true };
+    } catch (err) {
+      addToast(err.message, 'error');
+      return { success: false };
+    }
+  };
+
+  const deleteAvatar = async () => {
+    try {
+      const updated = await api.delete('/users/me/avatar');
+      setUser(updated);
+      addToast('Foto profil berhasil dihapus.', 'success');
+      return { success: true };
+    } catch (err) {
+      addToast(err.message, 'error');
+      return { success: false };
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user, authLoading,
-      login, register, logout, updateProfile,
+      login, register, logout, updateProfile, uploadAvatar, deleteAvatar,
       toasts, addToast, removeToast,
     }}>
       {children}

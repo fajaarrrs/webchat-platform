@@ -5,6 +5,17 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
+function isImageAttachment(fileName = '', fileType = '') {
+  return (fileType || '').startsWith('image/')
+    || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes((fileName.split('.').pop() || '').toLowerCase());
+}
+
+function getPreviewText(row) {
+  if (row.last_message && row.last_message.trim()) return row.last_message.trim();
+  if (row.last_file_name) return isImageAttachment(row.last_file_name, row.last_file_type) ? 'Gambar' : `File: ${row.last_file_name}`;
+  return 'Belum ada pesan.';
+}
+
 // GET /api/forums — admin gets all, others get only their forums
 router.get('/', authenticate, (req, res) => {
   let forums;
@@ -15,6 +26,8 @@ router.get('/', authenticate, (req, res) => {
              (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
              (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count,
              (SELECT content FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_message,
+             (SELECT file_name FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_name,
+             (SELECT file_type FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_type,
              (SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_activity
       FROM forums f
       LEFT JOIN users u ON f.created_by = u.id
@@ -27,6 +40,8 @@ router.get('/', authenticate, (req, res) => {
              (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
              (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count,
              (SELECT content FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_message,
+            (SELECT file_name FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_name,
+            (SELECT file_type FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_file_type,
              (SELECT created_at FROM messages WHERE forum_id = f.id ORDER BY created_at DESC LIMIT 1) as last_activity
       FROM forums f
       LEFT JOIN users u ON f.created_by = u.id
@@ -35,6 +50,86 @@ router.get('/', authenticate, (req, res) => {
     `).all(req.user.id);
   }
   res.json(forums);
+});
+
+// GET /api/forums/dashboard/karyawan — employee dashboard summary and queue
+router.get('/dashboard/karyawan', authenticate, (req, res) => {
+  if (req.user.role !== 'karyawan') {
+    return res.status(403).json({ error: 'Dashboard ini hanya untuk karyawan.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT f.id, f.title, f.project, f.created_at,
+           (SELECT COUNT(*) FROM messages m WHERE m.forum_id = f.id) as message_count,
+           (SELECT content FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_message,
+           (SELECT file_name FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_file_name,
+           (SELECT file_type FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_file_type,
+           (SELECT created_at FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_activity,
+           (SELECT u.role FROM messages m JOIN users u ON u.id = m.user_id WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) as last_sender_role,
+           (SELECT u.username FROM forum_members fm2 JOIN users u ON u.id = fm2.user_id WHERE fm2.forum_id = f.id AND u.role = 'client' ORDER BY fm2.joined_at ASC, u.username ASC LIMIT 1) as client_name,
+           EXISTS(
+             SELECT 1
+             FROM messages m
+             WHERE m.forum_id = f.id
+               AND m.user_id = ?
+               AND date(m.created_at, '+7 hours') = date('now', '+7 hours')
+           ) as handled_today
+    FROM forums f
+    JOIN forum_members fm ON fm.forum_id = f.id
+    WHERE fm.user_id = ?
+    ORDER BY COALESCE((SELECT created_at FROM messages m WHERE m.forum_id = f.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1), f.created_at) DESC
+  `).all(req.user.id, req.user.id);
+
+  const todayKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  const queue = rows.map((row) => {
+    const latestAt = row.last_activity || row.created_at;
+    const latestDate = latestAt
+      ? new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date((latestAt.endsWith('Z') ? latestAt : `${latestAt.replace(' ', 'T')}Z`)))
+      : null;
+
+    let status = 'pending';
+    if (row.message_count > 0 && row.last_sender_role && row.last_sender_role !== 'client') {
+      status = latestDate === todayKey ? 'active' : 'done';
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      project: row.project,
+      client_name: row.client_name || row.title,
+      last_preview: getPreviewText(row),
+      last_activity: latestAt,
+      status,
+      handled_today: Boolean(row.handled_today),
+    };
+  });
+
+  const statusPriority = { pending: 0, active: 1, done: 2 };
+  queue.sort((a, b) => {
+    const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.last_activity || 0).getTime() - new Date(a.last_activity || 0).getTime();
+  });
+
+  res.json({
+    stats: {
+      activeCount: queue.filter(item => item.status === 'active').length,
+      pendingCount: queue.filter(item => item.status === 'pending').length,
+      handledTodayCount: queue.filter(item => item.handled_today).length,
+    },
+    queue: queue.slice(0, 8),
+  });
 });
 
 // POST /api/forums — create forum (admin only)
@@ -98,6 +193,28 @@ router.get('/:id/members', authenticate, (req, res) => {
   `).all(forumId);
 
   res.json(members);
+});
+
+// DELETE /api/forums/:id/leave — current user leaves a forum
+router.delete('/:id/leave', authenticate, (req, res) => {
+  const forumId = parseInt(req.params.id);
+  if (isNaN(forumId)) return res.status(400).json({ error: 'Forum ID tidak valid.' });
+
+  const forum = db.prepare('SELECT id FROM forums WHERE id = ?').get(forumId);
+  if (!forum) return res.status(404).json({ error: 'Forum tidak ditemukan.' });
+
+  const membership = db.prepare(
+    'SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?'
+  ).get(forumId, req.user.id);
+
+  if (!membership) {
+    return res.status(404).json({ error: 'Kamu bukan member forum ini.' });
+  }
+
+  db.prepare('DELETE FROM forum_members WHERE forum_id = ? AND user_id = ?')
+    .run(forumId, req.user.id);
+
+  res.json({ message: 'Berhasil keluar dari grup.' });
 });
 
 // DELETE /api/forums/:id — delete forum (admin only)

@@ -19,11 +19,11 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Socket.io setup
 const io = new Server(server, {
-  cors: { origin: FRONTEND_URL, methods: ['GET', 'POST'] },
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
 // Middleware
-app.use(cors({ origin: FRONTEND_URL }));
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // Init DB (creates tables + seeds admin)

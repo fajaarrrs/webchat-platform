@@ -1,3 +1,4 @@
+import './SettingsPage.css';
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -5,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
 import { Settings, User, Lock, Eye, EyeOff, Save, BadgeCheck, ShieldCheck, UserCircle, Users, Pencil, Trash2, X, Check, Camera, ArrowLeft, ChevronDown } from 'lucide-react';
+
 
 const roleBadge = {
   admin:    { label: 'Admin',    bg: '#ede9fe', color: '#6d28d9', Icon: ShieldCheck },
@@ -871,14 +873,15 @@ export default function SettingsPage() {
             {usersLoading ? (
               <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Memuat...</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#F9FAFB' }}>
-                    {['Username', 'Email', 'Role', 'Aksi'].map(h => (
-                      <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #F3F4F6' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+              <div className="table-responsive-wrapper">
+                <table className="users-table">
+                  <thead>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      {['Username', 'Email', 'Role', 'Aksi'].map(h => (
+                        <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
                 <tbody>
                   {users.map((u, i) => {
                     const rb = roleBadge[u.role] || roleBadge.client;
@@ -934,6 +937,7 @@ export default function SettingsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}

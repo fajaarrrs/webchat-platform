@@ -93,6 +93,7 @@ export default function KaryawanDashboard() {
                   <p style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>{value}</p>
                   <p style={{ fontSize: 12, color: '#6B7280', margin: '2px 0 0' }}>{label}</p>
                 </div>
+
               </div>
             ))}
           </div>

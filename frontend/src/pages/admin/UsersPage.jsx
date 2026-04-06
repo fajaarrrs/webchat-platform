@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { api, BASE_URL } from '../../api';
@@ -50,6 +50,13 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     api
@@ -140,8 +147,10 @@ export default function UsersPage() {
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <Users size={20} color="#2563EB" />
+
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
               Manajemen User
+
             </h1>
           </div>
           <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>
@@ -164,7 +173,7 @@ export default function UsersPage() {
                 <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
                   Total Users
                 </p>
-                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#1F2937' }}>{counts.all}</p>
+                <p style={{ margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937' }}>{counts.all}</p>
               </div>
               <div
                 style={{
@@ -188,7 +197,7 @@ export default function UsersPage() {
                 <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
                   Admin
                 </p>
-                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#1F2937' }}>{counts.admin}</p>
+                <p style={{ margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937' }}>{counts.admin}</p>
               </div>
               <div
                 style={{
@@ -296,9 +305,6 @@ export default function UsersPage() {
               padding: '16px 24px',
               borderBottom: '1px solid #F3F4F6',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
               flexWrap: 'wrap',
             }}
           >

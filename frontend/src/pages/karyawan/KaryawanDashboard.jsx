@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../api';
-import { MessageSquare, Clock, CheckCircle, Inbox, ArrowUpRight } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle, Inbox, ArrowUpRight, Hand } from 'lucide-react';
 import useBreakpoint from '../../hooks/useBreakpoint';
 
 const statusStyle = {
@@ -62,9 +62,12 @@ export default function KaryawanDashboard() {
     <DashboardLayout>
       <div style={{ padding: isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px', width: '100%' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ marginBottom: 28 }}>
+          <div className="admin-dash-reveal" style={{ marginBottom: 28, '--dash-delay': '20ms' }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
-              {greeting}, {user?.username}! 👋
+              {greeting}, {user?.username}!
+              <span className="admin-dash-wave-icon" aria-hidden="true">
+                <Hand size={24} color="#2563EB" strokeWidth={2.2} />
+              </span>
             </h1>
             <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
               Berikut status antrian chat kamu hari ini.
@@ -76,8 +79,9 @@ export default function KaryawanDashboard() {
               { label: 'Chat Aktif', value: stats.activeCount, icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
               { label: 'Menunggu', value: stats.pendingCount, icon: Clock, color: '#d97706', bg: '#fffbeb' },
               { label: 'Ditangani Hari Ini', value: stats.handledTodayCount, icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
-            ].map(({ label, value, icon: Icon, color, bg }) => (
-              <div key={label} style={{
+            ].map(({ label, value, icon: Icon, color, bg }, index) => (
+              <div key={label} className="admin-dash-reveal admin-dash-stat-card" style={{
+                '--dash-delay': `${90 + index * 55}ms`,
                 background: '#fff', borderRadius: 14, padding: '20px 22px',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
                 display: 'flex', alignItems: 'center', gap: 14, minHeight: 94,
@@ -93,7 +97,8 @@ export default function KaryawanDashboard() {
             ))}
           </div>
 
-          <div style={{
+          <div className="admin-dash-reveal" style={{
+            '--dash-delay': '260ms',
             background: '#fff', borderRadius: 14, padding: 24,
             boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
           }}>
@@ -116,10 +121,11 @@ export default function KaryawanDashboard() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {queue.map((chat) => {
+                {queue.map((chat, index) => {
                   const s = statusStyle[chat.status] || statusStyle.pending;
                   return (
-                    <div key={chat.id} style={{
+                    <div key={chat.id} className="admin-dash-activity-item" style={{
+                      '--dash-delay': `${320 + index * 45}ms`,
                       display: 'flex', alignItems: 'center', gap: 14,
                       padding: '14px 16px', borderRadius: 10,
                       border: '1px solid #F3F4F6', background: '#FAFAFA',

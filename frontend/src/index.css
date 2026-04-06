@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -63,3 +67,95 @@ input, textarea, select {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-text); }
+
+/* Admin dashboard motion */
+@keyframes adminDashReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes adminDashWave {
+  0%,
+  45%,
+  100% {
+    transform: rotate(0deg);
+  }
+  8% {
+    transform: rotate(14deg);
+  }
+  16% {
+    transform: rotate(-9deg);
+  }
+  24% {
+    transform: rotate(12deg);
+  }
+  32% {
+    transform: rotate(-4deg);
+  }
+}
+
+.admin-dash-reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: adminDashReveal 520ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: var(--dash-delay, 0ms);
+}
+
+.admin-dash-wave-icon {
+  display: inline-flex;
+  margin-left: 8px;
+  transform-origin: 80% 80%;
+  animation: adminDashWave 2.3s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+.admin-dash-stat-card {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.admin-dash-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.08);
+}
+
+.admin-dash-followup-card {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.admin-dash-followup-card:hover {
+  background-color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
+}
+
+.admin-dash-activity-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: adminDashReveal 460ms ease forwards;
+  animation-delay: var(--dash-delay, 0ms);
+}
+
+.admin-dash-quick-action {
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.admin-dash-quick-action:hover {
+  transform: translateX(2px);
+  filter: brightness(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dash-reveal,
+  .admin-dash-activity-item,
+  .admin-dash-wave-icon {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

@@ -30,9 +30,9 @@ const menuByRole = {
 };
 
 const roleBadge = {
-  admin:    { label: 'Admin',    bg: '#ede9fe', color: '#6d28d9' },
-  karyawan: { label: 'Employee', bg: '#dbeafe', color: '#1d4ed8' },
-  client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46' },
+  admin:    { label: 'Admin',    className: 'bg-violet-100 text-violet-700' },
+  karyawan: { label: 'Employee', className: 'bg-blue-100 text-blue-700' },
+  client:   { label: 'Client',   className: 'bg-emerald-100 text-emerald-700' },
 };
 
 export default function Sidebar() {
@@ -52,121 +52,72 @@ export default function Sidebar() {
     navigate('/login');
   };
 
+  const asideWidthClass = isMobile ? 'w-full' : isTablet ? 'w-[212px]' : 'w-[240px]';
+
   return (
-    <aside style={{
-      width: isMobile ? '100%' : isTablet ? 212 : 240,
-      minHeight: isMobile ? 'auto' : '100vh',
-      background: '#111827',
-      display: 'flex', flexDirection: 'column',
-      flexShrink: 0,
-      position: isMobile ? 'relative' : 'sticky',
-      top: 0,
-      height: isMobile ? 'auto' : '100vh',
-    }}>
+    <aside className={`${asideWidthClass} ${isMobile ? 'relative' : 'sticky top-0 h-screen'} flex shrink-0 flex-col bg-slate-900 font-sans`}>
       {/* Logo */}
-      <div style={{
-        padding: isMobile ? '14px 16px 12px' : '24px 20px 20px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: '#1D4ED8',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
+      <div className={`${isMobile ? 'px-4 pb-3 pt-3.5' : 'px-5 pb-5 pt-6'} border-b border-slate-800`}>
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow-sm transition-all duration-200">
             <MessageSquare size={18} color="#fff" />
           </div>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px' }}>
+          <span className="text-base font-bold tracking-tight text-white">
             WebcareChat
           </span>
         </div>
       </div>
 
       {/* User Info */}
-      <div style={{
-        padding: isMobile ? '10px 16px' : '16px 20px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        display: 'flex', alignItems: 'center', gap: 12,
-      }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: '50%',
-          background: '#2563EB',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0,
-        }}>
+      <div className={`${isMobile ? 'px-4 py-2.5' : 'px-5 py-4'} flex items-center gap-3 border-b border-slate-800`}>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
           {initials}
         </div>
-        <div style={{ overflow: 'hidden' }}>
-          <div style={{
-            color: '#f9fafb', fontSize: 13, fontWeight: 600,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
+        <div className="min-w-0 overflow-hidden">
+          <div className="truncate text-sm font-semibold text-slate-50">
             {user.username}
           </div>
-          <span style={{
-            display: 'inline-block', fontSize: 10, fontWeight: 600,
-            padding: '1px 7px', borderRadius: 99,
-            background: badge.bg, color: badge.color, marginTop: 2,
-          }}>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge?.className || 'bg-slate-100 text-slate-700'}`}>
             {badge.label}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav style={{
-        flex: 1,
-        padding: isMobile ? '10px 10px 8px' : '12px 12px',
-        overflowY: 'auto',
-        maxHeight: 'none',
-      }}>
+      <nav className={`${isMobile ? 'px-2.5 pb-2 pt-2.5' : 'p-3'} flex-1 overflow-y-auto`}>
         {menu.map(({ label, icon: Icon, to }) => (
           <NavLink
             key={to}
             to={to}
-            style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px', borderRadius: 8, marginBottom: 2,
-              color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
-              background: isActive ? 'rgba(37,99,235,0.85)' : 'transparent',
-              fontWeight: isActive ? 600 : 400, fontSize: 14,
-              transition: 'all 0.15s',
-              textDecoration: 'none',
-            })}
-            onMouseEnter={e => {
-              if (!e.currentTarget.classList.contains('active')) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!e.currentTarget.getAttribute('aria-current')) {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
-              }
-            }}
+            className={({ isActive }) => (
+              `group relative mb-1 flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-600/10 text-blue-500'
+                  : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
+              }`
+            )}
           >
-            <Icon size={17} />
-            <span style={{ flex: 1 }}>{label}</span>
-            <ChevronRight size={13} style={{ opacity: 0.4 }} />
+            {({ isActive }) => (
+              <>
+                <span
+                  className={`absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full transition-all duration-200 ${
+                    isActive ? 'bg-blue-500 opacity-100' : 'bg-blue-500 opacity-0 group-hover:opacity-40'
+                  }`}
+                />
+                <Icon size={17} />
+                <span className="flex-1">{label}</span>
+                <ChevronRight size={13} className={`transition-all duration-200 ${isActive ? 'opacity-70' : 'opacity-40 group-hover:opacity-60'}`} />
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
       {/* Logout */}
-      <div style={{ padding: isMobile ? '8px 10px 12px' : '12px 12px 20px' }}>
+      <div className={`${isMobile ? 'px-2.5 pb-3 pt-2' : 'px-3 pb-5 pt-3'}`}>
         <button
           onClick={handleLogout}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            width: '100%', padding: '9px 12px', borderRadius: 8,
-            background: 'none', border: 'none',
-            color: 'rgba(255,255,255,0.45)', fontSize: 14, fontWeight: 400,
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition-all duration-200 hover:bg-red-500/15 hover:text-red-400"
         >
           <LogOut size={17} />
           <span>Logout</span>

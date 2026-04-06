@@ -1,63 +1,59 @@
-const API_URL = 'http://localhost:5000/api';
-export const BASE_URL = 'http://localhost:5000';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-function getToken() {
-  return localStorage.getItem('wchat_token');
+const API_BASE_URL = `${BASE_URL}/api`;
+
+function withLeadingSlash(path) {
+	if (!path) return '/';
+	return path.startsWith('/') ? path : `/${path}`;
 }
 
-async function parseResponse(res) {
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    if (res.status === 404) throw new Error('Endpoint tidak ditemukan (404).');
-    if (res.status >= 500) throw new Error('Server mengalami kesalahan internal. Coba lagi nanti.');
-    if (!res.ok) throw new Error(`Server merespons dengan status ${res.status}.`);
-    throw new Error('Server tidak merespons dengan format yang benar.');
-  }
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan.');
-  return data;
+function buildHeaders(extraHeaders = {}, isFormData = false) {
+	const token = localStorage.getItem('wchat_token');
+	const headers = { ...extraHeaders };
+
+	if (!isFormData) {
+		headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+	}
+
+	if (token) {
+		headers.Authorization = `Bearer ${token}`;
+	}
+
+	return headers;
 }
 
-async function request(method, path, body) {
-  const headers = { 'Content-Type': 'application/json' };
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+async function request(path, { method = 'GET', body, headers, isFormData = false } = {}) {
+	const response = await fetch(`${API_BASE_URL}${withLeadingSlash(path)}`, {
+		method,
+		headers: buildHeaders(headers, isFormData),
+		body: body === undefined ? undefined : (isFormData ? body : JSON.stringify(body)),
+	});
 
-  let res;
-  try {
-    res = await fetch(`${API_URL}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new Error('Tidak dapat terhubung ke server. Pastikan server sedang berjalan.');
-  }
-  return parseResponse(res);
-}
+	const raw = await response.text();
+	let data = null;
 
-async function uploadFile(path, formData) {
-  const headers = {};
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+	if (raw) {
+		try {
+			data = JSON.parse(raw);
+		} catch {
+			data = raw;
+		}
+	}
 
-  let res;
-  try {
-    res = await fetch(`${API_URL}${path}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-  } catch {
-    throw new Error('Tidak dapat terhubung ke server. Pastikan server sedang berjalan.');
-  }
-  return parseResponse(res);
+	if (!response.ok) {
+		const message =
+			(data && typeof data === 'object' && (data.error || data.message))
+			|| `Request gagal (${response.status})`;
+		throw new Error(message);
+	}
+
+	return data;
 }
 
 export const api = {
-  get: (path) => request('GET', path),
-  post: (path, body) => request('POST', path, body),
-  put: (path, body) => request('PUT', path, body),
-  delete: (path) => request('DELETE', path),
-  upload: (path, formData) => uploadFile(path, formData),
+	get: (path) => request(path),
+	post: (path, body) => request(path, { method: 'POST', body }),
+	put: (path, body) => request(path, { method: 'PUT', body }),
+	delete: (path) => request(path, { method: 'DELETE' }),
+	upload: (path, formData) => request(path, { method: 'POST', body: formData, isFormData: true }),
 };

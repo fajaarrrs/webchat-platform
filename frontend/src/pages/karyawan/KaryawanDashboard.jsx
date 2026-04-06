@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../api';
 import { MessageSquare, Clock, CheckCircle, Inbox, ArrowUpRight } from 'lucide-react';
+import useBreakpoint from '../../hooks/useBreakpoint';
 
 const statusStyle = {
   active:  { bg: '#ecfdf5', color: '#059669', label: 'Aktif' },
@@ -27,7 +28,7 @@ function formatRelativeTime(dt) {
 
 export default function KaryawanDashboard() {
   const { user } = useAuth();
-  const isMobile = window.innerWidth <= 768;
+  const { isMobile, isTablet } = useBreakpoint();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
   const [stats, setStats] = useState({ activeCount: 0, pendingCount: 0, handledTodayCount: 0 });
@@ -59,8 +60,7 @@ export default function KaryawanDashboard() {
 
   return (
     <DashboardLayout>
-
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px', width: '100%' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
@@ -71,7 +71,7 @@ export default function KaryawanDashboard() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
             {[
               { label: 'Chat Aktif', value: stats.activeCount, icon: MessageSquare, color: '#2563EB', bg: '#eff6ff' },
               { label: 'Menunggu', value: stats.pendingCount, icon: Clock, color: '#d97706', bg: '#fffbeb' },

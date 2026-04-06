@@ -136,7 +136,20 @@ router.delete('/forum/:forumId', authenticate, (req, res) => {
     'SELECT file_url FROM messages WHERE forum_id = ? AND file_url IS NOT NULL'
   ).all(forumId);
 
-  db.prepare('DELETE FROM messages WHERE forum_id = ?').run(forumId);
+  try {
+    const clearForumMessages = db.transaction((targetForumId) => {
+      db.prepare('UPDATE forum_reads SET last_read_message_id = NULL WHERE forum_id = ?').run(targetForumId);
+      db.prepare(
+        'UPDATE messages SET reply_to_id = NULL WHERE forum_id = ? AND reply_to_id IN (SELECT id FROM messages WHERE forum_id = ?)'
+      ).run(targetForumId, targetForumId);
+      db.prepare('DELETE FROM messages WHERE forum_id = ?').run(targetForumId);
+    });
+
+    clearForumMessages(forumId);
+  } catch (error) {
+    console.error('Clear forum chat failed:', error);
+    return res.status(500).json({ error: 'Gagal mengosongkan chat forum.' });
+  }
 
   files.forEach((item) => {
     if (!item.file_url) return;
@@ -162,7 +175,18 @@ router.delete('/:id', authenticate, (req, res) => {
     return res.status(403).json({ error: 'Tidak bisa menghapus pesan orang lain.' });
   }
 
-  db.prepare('DELETE FROM messages WHERE id = ?').run(msgId);
+  try {
+    const deleteMessageSafely = db.transaction((targetMsgId) => {
+      db.prepare('UPDATE messages SET reply_to_id = NULL WHERE reply_to_id = ?').run(targetMsgId);
+      db.prepare('UPDATE forum_reads SET last_read_message_id = NULL WHERE last_read_message_id = ?').run(targetMsgId);
+      db.prepare('DELETE FROM messages WHERE id = ?').run(targetMsgId);
+    });
+
+    deleteMessageSafely(msgId);
+  } catch (error) {
+    console.error('Delete message failed:', error);
+    return res.status(500).json({ error: 'Gagal menghapus pesan.' });
+  }
 
   // Delete physical file if present
   if (msg.file_url) {

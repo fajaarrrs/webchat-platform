@@ -14,7 +14,10 @@ import {
   UserPlus,
   Filter,
   Mail,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
+import useBreakpoint from '../../hooks/useBreakpoint';
 
 const roleBadge = {
   admin: { label: 'Admin', bg: '#ede9fe', color: '#6d28d9' },
@@ -38,12 +41,14 @@ const baseButtonStyle = {
 
 export default function UsersPage() {
   const { user: currentUser, addToast } = useAuth();
+  const { isMobile, isTablet } = useBreakpoint();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -60,6 +65,17 @@ export default function UsersPage() {
       .catch((err) => addToast(err.message, 'error'))
       .finally(() => setLoading(false));
   }, [addToast]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('[data-role-dropdown]')) {
+        setShowRoleDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const counts = useMemo(
     () => ({
@@ -121,9 +137,12 @@ export default function UsersPage() {
     { key: 'client', label: 'Client' },
   ];
 
+  const pagePadding = isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px';
+  const summaryGridColumns = isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))';
+
   return (
     <DashboardLayout>
-      <div style={{ padding: isMobile ? '24px 16px' : '32px 36px', width: '100%' }}>
+      <div style={{ padding: pagePadding, width: '100%' }}>
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -143,7 +162,7 @@ export default function UsersPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(140px, 1fr))' : 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: summaryGridColumns,
             gap: 16,
             marginBottom: 22,
           }}
@@ -289,7 +308,7 @@ export default function UsersPage() {
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 260, maxWidth: 360 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 220, maxWidth: isMobile ? '100%' : 360 }}>
               <Search
                 size={15}
                 style={{
@@ -347,11 +366,11 @@ export default function UsersPage() {
               </p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 600 : 'auto' }}>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#F9FAFB' }}>
-                  {['User', 'Email', 'Role', 'Aksi'].map((h) => (
+                  {['User', 'Role', 'Email', 'Password', 'Aksi'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -426,13 +445,6 @@ export default function UsersPage() {
                       </td>
 
                       <td style={{ padding: '16px 20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6B7280' }}>
-                          <Mail size={14} />
-                          <span style={{ fontSize: 13 }}>{u.email}</span>
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '16px 20px' }}>
                         <span
                           style={{
                             background: badge.bg,
@@ -454,18 +466,41 @@ export default function UsersPage() {
                       </td>
 
                       <td style={{ padding: '16px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6B7280' }}>
+                          <Mail size={14} />
+                          <span style={{ fontSize: 13 }}>{u.email}</span>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '16px 20px' }}>
+                        <span
+                          style={{
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            fontSize: 12,
+                            color: '#6B7280',
+                            letterSpacing: 1,
+                          }}
+                        >
+                          ********
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '16px 20px' }}>
                         {isSelf ? (
                           <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Tidak ada aksi</span>
                         ) : (
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <button
                               onClick={() =>
-                                setEditingUser({
-                                  id: u.id,
-                                  username: u.username,
-                                  email: u.email,
-                                  role: u.role,
-                                })
+                                {
+                                  setEditingUser({
+                                    id: u.id,
+                                    username: u.username,
+                                    email: u.email,
+                                    role: u.role,
+                                  });
+                                  setShowRoleDropdown(false);
+                                }
                               }
                               style={{
                                 ...baseButtonStyle,
@@ -560,8 +595,8 @@ export default function UsersPage() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -608,7 +643,7 @@ export default function UsersPage() {
               </div>
 
               <button
-                onClick={() => setEditingUser(null)}
+                onClick={() => { setEditingUser(null); setShowRoleDropdown(false); }}
                 style={{
                   background: '#F9FAFB',
                   border: '1px solid #E5E7EB',
@@ -674,30 +709,89 @@ export default function UsersPage() {
                 >
                   Role
                 </label>
-                <select
-                  value={editingUser.role}
-                  onChange={(e) => setEditingUser((p) => ({ ...p, role: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '11px 12px',
-                    border: '1.5px solid #E5E7EB',
-                    borderRadius: 10,
-                    fontSize: 14,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    background: '#fff',
-                  }}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="karyawan">Employee (karyawan)</option>
-                  <option value="client">Client</option>
-                </select>
+                <div data-role-dropdown="true" style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoleDropdown((v) => !v)}
+                    style={{
+                      width: '100%',
+                      padding: '11px 12px',
+                      border: showRoleDropdown ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      color: '#1F2937',
+                    }}
+                  >
+                    {editingUser.role === 'admin' ? 'Admin' : editingUser.role === 'karyawan' ? 'Employee (karyawan)' : 'Client'}
+                    <ChevronDown size={16} color="#6B7280" />
+                  </button>
+
+                  {showRoleDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      right: 0,
+                      background: '#fff',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 10,
+                      boxShadow: '0 12px 28px rgba(0,0,0,0.14)',
+                      padding: 6,
+                      zIndex: 100,
+                    }}>
+                      {[
+                        { value: 'admin', label: 'Admin' },
+                        { value: 'karyawan', label: 'Employee (karyawan)' },
+                        { value: 'client', label: 'Client' },
+                      ].map((option) => {
+                        const isActive = editingUser.role === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setEditingUser((p) => ({ ...p, role: option.value }));
+                              setShowRoleDropdown(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              borderRadius: 8,
+                              background: isActive ? '#EFF6FF' : 'transparent',
+                              color: isActive ? '#1D4ED8' : '#374151',
+                              padding: '9px 10px',
+                              fontSize: 13,
+                              fontWeight: isActive ? 700 : 500,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#F9FAFB'; }}
+                            onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <span>{option.label}</span>
+                            {isActive && <Check size={14} color="#1D4ED8" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button
                   type="button"
-                  onClick={() => setEditingUser(null)}
+                  onClick={() => { setEditingUser(null); setShowRoleDropdown(false); }}
                   style={{
                     ...baseButtonStyle,
                     flex: 1,

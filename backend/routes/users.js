@@ -187,6 +187,10 @@ router.put("/:id", authenticate, requireAdmin, (req, res) => {
 router.delete("/:id", authenticate, requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id);
 
+  if (Number.isNaN(userId)) {
+    return res.status(400).json({ error: "User ID tidak valid." });
+  }
+
   // Cannot delete yourself
   if (userId === req.user.id) {
     return res
@@ -201,10 +205,35 @@ router.delete("/:id", authenticate, requireAdmin, (req, res) => {
   if (user.role === "admin")
     return res.status(403).json({ error: "Tidak dapat menghapus akun admin." });
 
-  db.prepare("DELETE FROM forum_members WHERE user_id = ?").run(userId);
-  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  try {
+    const deleteUserWithRelations = db.transaction((targetUserId) => {
+      // Keep forums, but detach the deleted user as creator.
+      db.prepare("UPDATE forums SET created_by = NULL WHERE created_by = ?").run(
+        targetUserId,
+      );
 
-  res.json({ message: "User berhasil dihapus." });
+      // Remove references to messages owned by the target user.
+      db.prepare(
+        "UPDATE messages SET reply_to_id = NULL WHERE reply_to_id IN (SELECT id FROM messages WHERE user_id = ?)",
+      ).run(targetUserId);
+      db.prepare(
+        "UPDATE forum_reads SET last_read_message_id = NULL WHERE last_read_message_id IN (SELECT id FROM messages WHERE user_id = ?)",
+      ).run(targetUserId);
+
+      db.prepare("DELETE FROM forum_reads WHERE user_id = ?").run(targetUserId);
+      db.prepare("DELETE FROM forum_members WHERE user_id = ?").run(targetUserId);
+      db.prepare("DELETE FROM messages WHERE user_id = ?").run(targetUserId);
+      db.prepare("DELETE FROM users WHERE id = ?").run(targetUserId);
+    });
+
+    deleteUserWithRelations(userId);
+    res.json({ message: "User berhasil dihapus." });
+  } catch (error) {
+    console.error("Delete user failed:", error);
+    res
+      .status(500)
+      .json({ error: "Gagal menghapus user karena masih terhubung ke data lain." });
+  }
 });
 
 module.exports = router;

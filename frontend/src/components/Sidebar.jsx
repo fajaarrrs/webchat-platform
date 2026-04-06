@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import useBreakpoint from '../hooks/useBreakpoint';
 import {
   LayoutDashboard, MessageSquare, Users, Link2,
   MessagesSquare, Settings, LogOut, ChevronRight,
@@ -37,9 +38,10 @@ const roleBadge = {
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const { isMobile, isTablet } = useBreakpoint();
 
   if (!user) return null;
+  if (user.role !== 'admin') return null;
 
   const menu = menuByRole[user.role] || [];
   const badge = roleBadge[user.role];
@@ -52,17 +54,18 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside style={{
-      width: 240, minHeight: '100vh', 
-      background: '#0f172a', // Slate 950 Dark Navy
+      width: isMobile ? '100%' : isTablet ? 212 : 240,
+      minHeight: isMobile ? 'auto' : '100vh',
+      background: '#111827',
       display: 'flex', flexDirection: 'column',
-      flexShrink: 0, position: isMobile ? 'fixed' : 'sticky', 
-      top: 0, height: '100dvh', zIndex: 999,
-      transform: isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-      transition: 'transform 0.3s ease-in-out',
+      flexShrink: 0,
+      position: isMobile ? 'relative' : 'sticky',
+      top: 0,
+      height: isMobile ? 'auto' : '100vh',
     }}>
       {/* Logo */}
       <div style={{
-        padding: '24px 20px 20px',
+        padding: isMobile ? '14px 16px 12px' : '24px 20px 20px',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -82,7 +85,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* User Info */}
       <div style={{
-        padding: '16px 20px',
+        padding: isMobile ? '10px 16px' : '16px 20px',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
@@ -112,7 +115,12 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* Navigation */}
-      <nav style={{ flex: 1, minHeight: 0, padding: '12px 12px 0', overflowY: 'auto' }}>
+      <nav style={{
+        flex: 1,
+        padding: isMobile ? '10px 10px 8px' : '12px 12px',
+        overflowY: 'auto',
+        maxHeight: 'none',
+      }}>
         {menu.map(({ label, icon: Icon, to }) => (
           <NavLink
             key={to}
@@ -148,7 +156,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </nav>
 
       {/* Logout */}
-      <div style={{ padding: '4px 12px 24px', flexShrink: 0, background: '#0f172a' }}>
+      <div style={{ padding: isMobile ? '8px 10px 12px' : '12px 12px 20px' }}>
         <button
           onClick={handleLogout}
           style={{

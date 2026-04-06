@@ -244,16 +244,6 @@ export default function LoginPage() {
           font-weight: 600;
         }
 
-        .demo-box {
-          margin-top: 22px;
-          padding: 14px 18px;
-          border-radius: 16px;
-          background: #eef6ff;
-          color: #1457a8;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-
         @media (max-width: 1024px) {
           .auth-brand h1 {
             font-size: 46px;
@@ -367,10 +357,6 @@ export default function LoginPage() {
 
             <div className="switch-auth">
               Belum punya akun? <Link to="/register">Register</Link>
-            </div>
-
-            <div className="demo-box">
-              <strong>Demo Admin:</strong> admin@webcare.com / adminchat
             </div>
           </div>
         </div>

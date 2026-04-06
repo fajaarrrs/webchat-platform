@@ -1,81 +1,133 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Menu, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import useBreakpoint from '../hooks/useBreakpoint';
+import { useAuth } from '../context/AuthContext';
 
-export default function DashboardLayout({ children, disableScroll = false }) {
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+export default function DashboardLayout({ children, hideSidebar = false }) {
+  const { user } = useAuth();
+  const location = useLocation();
+  const { isMobile } = useBreakpoint();
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Body scroll lock untuk mobile saat sidebar terbuka
+  const shouldRenderSidebar = !hideSidebar && user?.role === 'admin';
+
   useEffect(() => {
-    if (isSidebarOpen) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
     };
-  }, [isSidebarOpen]);
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [menuOpen]);
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      height: disableScroll ? '100vh' : 'auto', 
-      minHeight: '100vh',
-      background: 'var(--bg)', 
-      position: 'relative', 
-      overflow: disableScroll ? 'hidden' : 'visible' 
-    }}>
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
-      
-      {/* Overlay for mobile sidebar */}
-      {isSidebarOpen && (
-        <div 
-          onClick={() => setSidebarOpen(false)}
-          className="show-mobile"
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 998,
-            transition: 'opacity 0.3s'
-          }}
-        />
-      )}
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      {shouldRenderSidebar && !isMobile && <Sidebar />}
 
-      <main style={{ 
-        flex: 1, 
-        minWidth: 0, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: disableScroll ? '100%' : 'auto',
-        overflow: disableScroll ? 'hidden' : 'visible' 
-      }}>
-        {/* Mobile Header Toggle */}
-        <div className="show-mobile" style={{
-          padding: '12px 16px', background: '#fff', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', gap: 12
-        }}>
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            style={{ padding: 8, background: 'none', border: 'none', display: 'flex' }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-          </button>
-        </div>
-        
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          minHeight: 0, 
-          overflowY: disableScroll ? 'hidden' : 'visible'
-        }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {shouldRenderSidebar && isMobile && (
+          <div style={{
+            height: 58,
+            background: '#fff',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 12px',
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
+          }}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: '1px solid #E5E7EB',
+                background: '#fff',
+                color: '#4B5563',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Menu size={18} />
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+            <div style={{ width: 36, height: 36 }} />
+          </div>
+        )}
+
+        <main style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           {children}
+        </main>
+      </div>
+
+      {shouldRenderSidebar && isMobile && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(17,24,39,0.35)',
+            zIndex: 1200,
+            display: 'flex',
+            opacity: menuOpen ? 1 : 0,
+            pointerEvents: menuOpen ? 'auto' : 'none',
+            transition: 'opacity 0.24s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 280,
+              height: '100%',
+              background: '#111827',
+              position: 'relative',
+              transform: menuOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
+              boxShadow: '8px 0 30px rgba(0,0,0,0.24)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.06)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 2,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <X size={16} />
+            </button>
+            <Sidebar />
+          </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }

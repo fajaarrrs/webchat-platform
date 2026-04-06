@@ -70,6 +70,30 @@ function getConversationStatus(row, ownRole, todayKey) {
   return 'pending';
 }
 
+function slugifyForumTitle(input = '') {
+  return input
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 40) || 'forum';
+}
+
+function generateUniqueForumSlug(baseSlug) {
+  let candidate = baseSlug;
+  let suffix = 2;
+  while (true) {
+    const slugConflict = db.prepare('SELECT id FROM forums WHERE slug = ?').get(candidate);
+    const tokenConflict = db.prepare('SELECT id FROM forums WHERE token = ?').get(candidate);
+    if (!slugConflict && !tokenConflict) return candidate;
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+}
+
 // GET /api/forums — admin gets all, others get only their forums
 router.get('/', authenticate, (req, res) => {
   let forums;
@@ -209,10 +233,13 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Judul forum dan nama project wajib diisi.' });
   }
 
+  const normalizedTitle = title.trim();
+  const normalizedProject = project.trim();
   const token = crypto.randomBytes(5).toString('hex');
+  const slug = generateUniqueForumSlug(slugifyForumTitle(normalizedTitle));
   const result = db.prepare(
-    'INSERT INTO forums (title, project, description, token, created_by) VALUES (?, ?, ?, ?, ?)'
-  ).run(title.trim(), project.trim(), (description || '').trim(), token, req.user.id);
+    'INSERT INTO forums (title, project, description, token, slug, created_by) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(normalizedTitle, normalizedProject, (description || '').trim(), token, slug, req.user.id);
 
   // Auto-add admin as member
   db.prepare(
@@ -230,9 +257,10 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   res.status(201).json(forum);
 });
 
-// POST /api/forums/join/:token — join forum via link token
-router.post('/join/:token', authenticate, (req, res) => {
-  const forum = db.prepare('SELECT * FROM forums WHERE token = ?').get(req.params.token);
+// POST /api/forums/join/:identifier — join forum via link slug/token
+router.post('/join/:identifier', authenticate, (req, res) => {
+  const identifier = req.params.identifier;
+  const forum = db.prepare('SELECT * FROM forums WHERE slug = ? OR token = ?').get(identifier, identifier);
   if (!forum) return res.status(404).json({ error: 'Link tidak valid atau forum tidak ditemukan.' });
 
   db.prepare(
@@ -294,9 +322,19 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   const forum = db.prepare('SELECT id FROM forums WHERE id = ?').get(forumId);
   if (!forum) return res.status(404).json({ error: 'Forum tidak ditemukan.' });
 
-  db.prepare('DELETE FROM messages WHERE forum_id = ?').run(forumId);
-  db.prepare('DELETE FROM forum_members WHERE forum_id = ?').run(forumId);
-  db.prepare('DELETE FROM forums WHERE id = ?').run(forumId);
+  try {
+    const deleteForumSafely = db.transaction((targetForumId) => {
+      db.prepare('DELETE FROM forum_reads WHERE forum_id = ?').run(targetForumId);
+      db.prepare('DELETE FROM messages WHERE forum_id = ?').run(targetForumId);
+      db.prepare('DELETE FROM forum_members WHERE forum_id = ?').run(targetForumId);
+      db.prepare('DELETE FROM forums WHERE id = ?').run(targetForumId);
+    });
+
+    deleteForumSafely(forumId);
+  } catch (error) {
+    console.error('Delete forum failed:', error);
+    return res.status(500).json({ error: 'Gagal menghapus forum.' });
+  }
 
   res.json({ message: 'Forum berhasil dihapus.' });
 });

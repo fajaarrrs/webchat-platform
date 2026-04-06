@@ -1,9 +1,11 @@
 import './SettingsPage.css';
 ﻿import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
-import { Settings, User, Lock, Eye, EyeOff, Save, BadgeCheck, ShieldCheck, UserCircle, Users, Pencil, Trash2, X, Check, Camera } from 'lucide-react';
+import useBreakpoint from '../hooks/useBreakpoint';
+import { Settings, User, Lock, Eye, EyeOff, Save, BadgeCheck, ShieldCheck, UserCircle, Users, Pencil, Trash2, X, Check, Camera, ArrowLeft, ChevronDown } from 'lucide-react';
 
 
 const roleBadge = {
@@ -15,8 +17,14 @@ const roleBadge = {
 const CROP_SIZE = 280;
 
 export default function SettingsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialTab = location.state?.initialTab === 'password' || location.state?.initialTab === 'users'
+    ? location.state.initialTab
+    : 'profile';
   const { user, updateProfile, uploadAvatar, deleteAvatar, addToast } = useAuth();
-  const [tab, setTab] = useState('profile');
+  const { isMobile, isTablet } = useBreakpoint();
+  const [tab, setTab] = useState(initialTab);
   const [profileForm, setProfileForm] = useState({ username: user?.username || '', email: user?.email || '' });
   const [passForm, setPassForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
@@ -32,6 +40,7 @@ export default function SettingsPage() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState(null); // { id, username, email, role }
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -39,6 +48,9 @@ export default function SettingsPage() {
   const badge = roleBadge[user?.role] || roleBadge.client;
   const BadgeIcon = badge.Icon;
   const initials = user?.username?.slice(0, 2).toUpperCase() || '??';
+  const nonAdminRouteBase = user?.role ? `/${user.role}` : '';
+  const showProfileSection = isAdmin ? tab === 'profile' : true;
+  const showPasswordSection = isAdmin ? tab === 'password' : true;
 
   const tabs = [
     { key: 'profile',  label: 'Profil',    icon: User },
@@ -55,6 +67,26 @@ export default function SettingsPage() {
         .finally(() => setUsersLoading(false));
     }
   }, [tab]);
+
+  useEffect(() => {
+    if (!location.state?.initialTab) return;
+    if (location.state.initialTab === 'password' || (location.state.initialTab === 'users' && isAdmin)) {
+      setTab(location.state.initialTab);
+    } else {
+      setTab('profile');
+    }
+  }, [location.state, isAdmin]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('[data-role-dropdown]')) {
+        setShowRoleDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const clampOffset = (val, imgDim) => Math.min(0, Math.max(CROP_SIZE - imgDim, val));
 
@@ -216,21 +248,56 @@ export default function SettingsPage() {
     }
   };
 
+  const containerStyle = isAdmin
+    ? {
+        padding: isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px',
+        maxWidth: 780,
+      }
+    : {
+        padding: isMobile ? '20px 14px 36px' : '32px 20px 48px',
+        maxWidth: 820,
+        width: '100%',
+        margin: '0 auto',
+      };
+
   return (
     <>
-    <DashboardLayout>
-      <div style={{ padding: '32px 36px', maxWidth: 780 }}>
+    <DashboardLayout hideSidebar={!isAdmin}>
+      <div style={containerStyle}>
         {/* Header */}
-        <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ marginBottom: 28 }}>
+          {!isAdmin && (
+            <button
+              onClick={() => navigate(`${nonAdminRouteBase}/chat`)}
+              style={{
+                marginBottom: 14,
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: '1px solid #E5E7EB',
+                background: '#fff',
+                color: '#4B5563',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <ArrowLeft size={14} /> Kembali ke Chat
+            </button>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Settings size={20} color="#2563EB" />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Pengaturan</h1>
+          </div>
         </div>
 
         {/* Profile Card */}
         <div style={{
           background: '#fff', borderRadius: 14, padding: '24px',
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB',
-          marginBottom: 20, display: 'flex', alignItems: 'center', gap: 20,
+          marginBottom: 20, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
         }}>
           {/* Avatar with camera overlay */}
           <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
@@ -285,28 +352,30 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#F3F4F6', padding: 4, borderRadius: 10, width: 'fit-content' }}>
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              style={{
-                padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: tab === key ? '#fff' : 'transparent',
-                color: tab === key ? '#1D4ED8' : '#6B7280',
-                fontWeight: tab === key ? 700 : 400, fontSize: 13,
-                boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <Icon size={14} /> {label}
-            </button>
-          ))}
-        </div>
+        {/* Tabs (admin only) */}
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#F3F4F6', padding: 4, borderRadius: 10, width: isMobile ? '100%' : 'fit-content', flexWrap: 'wrap' }}>
+            {tabs.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                style={{
+                  padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: tab === key ? '#fff' : 'transparent',
+                  color: tab === key ? '#1D4ED8' : '#6B7280',
+                  fontWeight: tab === key ? 700 : 400, fontSize: 13,
+                  boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Profile Form */}
-        {tab === 'profile' && (
+        {showProfileSection && (
           <div style={{ background: '#fff', borderRadius: 14, padding: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB' }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 20 }}>Edit Profil</h2>
             <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -413,8 +482,8 @@ export default function SettingsPage() {
         )}
 
         {/* Password Form */}
-        {tab === 'password' && (
-          <div style={{ background: '#fff', borderRadius: 14, padding: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB' }}>
+        {showPasswordSection && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB', marginTop: isAdmin ? 0 : 20 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', marginBottom: 20 }}>Ganti Password</h2>
             <form onSubmit={handleChangePass} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
@@ -499,7 +568,10 @@ export default function SettingsPage() {
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
-                              onClick={() => setEditingUser({ id: u.id, username: u.username, email: u.email, role: u.role })}
+                              onClick={() => {
+                                setEditingUser({ id: u.id, username: u.username, email: u.email, role: u.role });
+                                setShowRoleDropdown(false);
+                              }}
                               style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6B7280' }}
                               onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563EB'; e.currentTarget.style.borderColor = '#93c5fd'; }}
                               onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB'; }}
@@ -543,7 +615,7 @@ export default function SettingsPage() {
           <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937' }}>Edit User</h2>
-              <button onClick={() => setEditingUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
+              <button onClick={() => { setEditingUser(null); setShowRoleDropdown(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
             </div>
             <form onSubmit={handleEditUser} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
@@ -564,18 +636,84 @@ export default function SettingsPage() {
               ))}
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Role</label>
-                <select
-                  value={editingUser.role}
-                  onChange={e => setEditingUser(prev => ({ ...prev, role: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff' }}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="karyawan">Employee (karyawan)</option>
-                  <option value="client">Client</option>
-                </select>
+                <div data-role-dropdown="true" style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoleDropdown(v => !v)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: showRoleDropdown ? '1.5px solid #2563EB' : '1.5px solid #E5E7EB',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      background: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      color: '#1F2937',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {editingUser.role === 'admin' ? 'Admin' : editingUser.role === 'karyawan' ? 'Employee (karyawan)' : 'Client'}
+                    <ChevronDown size={16} color="#6B7280" />
+                  </button>
+
+                  {showRoleDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      right: 0,
+                      background: '#fff',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 10,
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.12)',
+                      padding: 6,
+                      zIndex: 50,
+                    }}>
+                      {[
+                        { value: 'admin', label: 'Admin' },
+                        { value: 'karyawan', label: 'Employee (karyawan)' },
+                        { value: 'client', label: 'Client' },
+                      ].map((option) => {
+                        const isActive = editingUser.role === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setEditingUser(prev => ({ ...prev, role: option.value }));
+                              setShowRoleDropdown(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              borderRadius: 8,
+                              background: isActive ? '#EFF6FF' : 'transparent',
+                              color: isActive ? '#1D4ED8' : '#374151',
+                              padding: '9px 10px',
+                              fontSize: 13,
+                              fontWeight: isActive ? 600 : 500,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F9FAFB'; }}
+                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <span>{option.label}</span>
+                            {isActive && <Check size={14} color="#1D4ED8" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button type="button" onClick={() => setEditingUser(null)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Batal</button>
+                <button type="button" onClick={() => { setEditingUser(null); setShowRoleDropdown(false); }} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Batal</button>
                 <button type="submit" disabled={editSaving} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: editSaving ? '#93c5fd' : '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer' }}>
                   {editSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>

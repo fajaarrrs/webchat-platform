@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -10,10 +9,10 @@ import {
   Search, Send, Paperclip, MoreVertical,
   FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
   Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown,
-  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, UserCircle2, Settings,
+  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings,
 } from 'lucide-react';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = 'http://localhost:5000';
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
 const JAKARTA_TIMEZONE = 'Asia/Jakarta';
 const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -81,6 +80,10 @@ function getFileInfo(name) {
   if (['xls', 'xlsx'].includes(ext))
     return { Icon: FileText, color: '#059669', bg: '#ECFDF5', label: 'XLS' };
   return { Icon: FileText, color: '#6B7280', bg: '#F9FAFB', label: ext.toUpperCase() || 'FILE' };
+}
+
+function cn(...classes) {
+  return classes.filter(Boolean).join(' ');
 }
 
 export default function ChatPage() {
@@ -287,16 +290,6 @@ export default function ChatPage() {
   }, [activeForumId]);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (activeForumId && isMobile) setShowForumList(false);
-  }, [activeForumId, isMobile]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -432,7 +425,7 @@ export default function ChatPage() {
 
     try {
       const token = localStorage.getItem('wchat_token');
-      const res = await fetch(`${SOCKET_URL}/api/messages/upload`, {
+      const res = await fetch('http://localhost:5000/api/messages/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -622,12 +615,6 @@ export default function ChatPage() {
     setShowQuickMenu(false);
   };
 
-  const handleOpenProfile = () => {
-    if (!roleBasePath) return;
-    navigate(`${roleBasePath}/settings`, { state: { initialTab: 'profile' } });
-    setShowQuickMenu(false);
-  };
-
   const handleOpenFaq = () => {
     setShowFaqModal(true);
     setShowQuickMenu(false);
@@ -681,9 +668,15 @@ export default function ChatPage() {
     <div
       data-msgdropdown="true"
       style={{
-        background: '#fff', borderRadius: 10, padding: 4,
-        boxShadow: '0 8px 28px rgba(0,0,0,0.14)', border: '1px solid #E5E7EB',
-        minWidth: 148, zIndex: 300, ...posStyle,
+        position: 'absolute',
+        zIndex: 30,
+        minWidth: 152,
+        background: '#fff',
+        border: '1px solid #E5E7EB',
+        borderRadius: 10,
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)',
+        padding: 6,
+        ...posStyle,
       }}
     >
       {[
@@ -703,14 +696,8 @@ export default function ChatPage() {
         <button
           key={label}
           onClick={onClick}
-          onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 9,
-            padding: '8px 12px', border: 'none', background: 'none',
-            cursor: 'pointer', fontSize: 13, color, width: '100%',
-            borderRadius: 6, textAlign: 'left',
-          }}
+          className="flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] transition-all duration-200 hover:bg-slate-50"
+          style={{ color }}
         >
           <Icon size={14} /> {label}
         </button>
@@ -720,7 +707,7 @@ export default function ChatPage() {
 
   return (
     <DashboardLayout hideSidebar={isCompactChatLayout}>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div className="flex h-screen overflow-hidden font-sans">
 
         {/* LEFT PANEL */}
         {showForumListPanel && (
@@ -733,7 +720,6 @@ export default function ChatPage() {
           <div style={{ padding: '14px 16px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
-
               {user?.role !== 'admin' && (
                 <div data-quickmenu="true" style={{ position: 'relative' }}>
                   <button
@@ -752,7 +738,6 @@ export default function ChatPage() {
                     <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
                       {[
                         { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
-                        { key: 'profile', label: 'Profile', icon: UserCircle2, onClick: handleOpenProfile },
                         { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
                         { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
                         { key: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, danger: true },
@@ -837,10 +822,7 @@ export default function ChatPage() {
               return (
                 <div
                   key={forum.id}
-                  onClick={() => {
-                    setActiveForumId(forum.id);
-                    if (isMobile) setShowForumList(false);
-                  }}
+                  onClick={() => setActiveForumId(forum.id)}
                   style={{
                     padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
                     background: isActive ? '#EFF6FF' : 'transparent',
@@ -906,68 +888,65 @@ export default function ChatPage() {
 
         {/* CENTER PANEL */}
         {showChatPanel && (!activeForum ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', color: '#9CA3AF' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <MessagesSquare size={48} style={{ marginBottom: 14, opacity: 0.3 }} />
-              <p style={{ fontSize: 14 }}>Pilih forum untuk mulai chat.</p>
+          <div className="flex flex-1 flex-col bg-slate-50 text-slate-400">
+            <div className="flex flex-1 flex-col items-center justify-center">
+              <MessagesSquare size={48} className="mb-3.5 opacity-30" />
+              <p className="text-sm">Pilih forum untuk mulai chat.</p>
             </div>
           </div>
-        ) : (activeForum || (!showForumList && isMobile)) && (
-          <div style={{ 
-            flex: 1, 
-            display: (isMobile && showForumList) ? 'none' : 'flex', 
-            flexDirection: 'column', background: '#F9FAFB', minWidth: 0,
-            height: '100%',
-            overflow: 'hidden'
-          }}>
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col bg-slate-50">
 
             {/* Chat Header */}
-            <div style={{
-              padding: isMobile ? '10px 14px' : '12px 20px', background: '#fff',
-              borderBottom: '1px solid #E5E7EB',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              position: 'relative', zIndex: 320,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="relative z-[320] flex items-center justify-between border-b border-slate-200 bg-white/85 px-5 py-3 backdrop-blur-md">
+              <div className="flex items-center gap-3">
                 {isMobile && (
                   <button
                     onClick={() => setActiveForumId(null)}
                     title="Kembali ke daftar forum"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50"
                   >
                     <ChevronLeft size={14} />
                   </button>
                 )}
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%',
-                  background: getColor(forums.findIndex(f => f.id === activeForumId)),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, color: '#fff',
-                }}>
-                  {getInitials(activeForum?.title)}
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"
+                  style={{ background: getColor(forums.findIndex(f => f.id === activeForumId)) }}
+                >
+                  {getInitials(activeForum.title)}
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', margin: 0 }}>{activeForum?.title}</p>
-                  <p style={{ fontSize: 12, margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
-                    <span style={{ color: '#6B7280' }}>Online</span>
+                  <p className="m-0 text-sm font-bold text-slate-800">{activeForum.title}</p>
+                  <p className="m-0 flex items-center gap-1.5 text-xs">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-slate-500">Online</span>
                   </p>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleHeaderSearchClick}
                   title="Cari pesan"
-                  style={{ width: 34, height: 34, borderRadius: 8, border: '1.5px solid #E5E7EB', background: showMessageSearch ? '#EFF6FF' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: showMessageSearch ? '#2563EB' : '#6B7280' }}
+                  className={cn(
+                    'flex h-8.5 w-8.5 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
+                    showMessageSearch
+                      ? 'border-blue-200 bg-blue-50 text-blue-600'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  )}
                 >
                   <Search size={15} />
                 </button>
 
-                <div data-headermenu="true" style={{ position: 'relative' }}>
+                <div data-headermenu="true" className="relative">
                   <button
                     onClick={() => setShowHeaderMenu(v => !v)}
                     title="Menu grup"
-                    style={{ width: 34, height: 34, borderRadius: 8, border: '1.5px solid #E5E7EB', background: showHeaderMenu ? '#EFF6FF' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: showHeaderMenu ? '#2563EB' : '#6B7280' }}
+                    className={cn(
+                      'flex h-8.5 w-8.5 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
+                      showHeaderMenu
+                        ? 'border-blue-200 bg-blue-50 text-blue-600'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    )}
                   >
                     <MoreVertical size={15} />
                   </button>
@@ -1090,10 +1069,10 @@ export default function ChatPage() {
             )}
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 14px' : '16px 20px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {loadingMsgs && <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: 16 }}>Memuat pesan...</div>}
+            <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4">
+              {loadingMsgs && <div className="p-4 text-center text-[13px] text-slate-400">Memuat pesan...</div>}
               {!loadingMsgs && messages.length === 0 && (
-                <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: 32 }}>
+                <div className="p-8 text-center text-[13px] text-slate-400">
                   Belum ada pesan. Mulai percakapan!
                 </div>
               )}
@@ -1119,16 +1098,8 @@ export default function ChatPage() {
                 return (
                   <div key={msg.id}>
                     {showDateSeparator && (
-                      <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0 12px' }}>
-                        <span style={{
-                          padding: '5px 12px',
-                          borderRadius: 999,
-                          background: '#E5E7EB',
-                          color: '#4B5563',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                        }}>
+                      <div className="my-2.5 flex justify-center">
+                        <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
                           {formatMessageGroupLabel(msg.created_at)}
                         </span>
                       </div>
@@ -1147,33 +1118,29 @@ export default function ChatPage() {
                           prev.includes(msg.id) ? prev.filter(id => id !== msg.id) : [...prev, msg.id]
                         ));
                       }}
-                      style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        alignItems: 'center',
-                        gap: 6,
-                        marginTop: (i > 0 && prevMsg?.user_id !== msg.user_id) ? 14 : 2,
-                        padding: selectionMode ? '2px 6px' : 0,
-                        borderRadius: 10,
-                        background: selectionMode && isSelected ? '#E0E7FF' : 'transparent',
-                        outline: (isActiveMatch || isJumpedTarget) ? '2px solid #93C5FD' : 'none',
-                        cursor: selectionMode ? 'pointer' : 'default',
-                      }}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-xl transition-all duration-200',
+                        isMe ? 'justify-end' : 'justify-start',
+                        i > 0 && prevMsg?.user_id !== msg.user_id ? 'mt-3.5' : 'mt-0.5',
+                        selectionMode ? 'cursor-pointer px-1.5 py-0.5' : 'cursor-default',
+                        selectionMode && isSelected ? 'bg-indigo-100' : '',
+                        isActiveMatch || isJumpedTarget ? 'ring-2 ring-blue-300' : ''
+                      )}
                     >
                     {/* Dropdown trigger — left of MY bubble */}
                     {!selectionMode && isMe && (
                       <div
                         data-msgdropdown="true"
-                        style={{ position: 'relative', opacity: showCtrl ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}
+                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                       >
                         <button
                           onClick={() => setOpenDropdownId(isOpen ? null : msg.id)}
-                          style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: '#E5E7EB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
                         >
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div style={{ position: 'absolute', top: 30, right: 0 }}>
+                          <div className="absolute right-0 top-[30px]">
                             {renderDropdown(msg)}
                           </div>
                         )}
@@ -1182,66 +1149,54 @@ export default function ChatPage() {
 
                     {/* Avatar for others */}
                     {!isMe && (
-                      <div style={{
-                        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                        background: showSender ? '#EFF6FF' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, fontWeight: 700, color: '#2563EB',
-                        visibility: showSender ? 'visible' : 'hidden',
-                        alignSelf: 'flex-end', marginBottom: 2,
-                      }}>
+                      <div
+                        className={cn(
+                          'mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center rounded-full text-[10px] font-bold text-blue-600',
+                          showSender ? 'visible bg-blue-50' : 'invisible bg-transparent'
+                        )}
+                      >
                         {showSender ? getInitials(msg.username) : ''}
                       </div>
                     )}
 
                     {/* Bubble */}
-                    <div style={{ maxWidth: isMobile ? '82%' : '62%' }}>
+                    <div className="max-w-[72%] md:max-w-[62%]">
                       {showSender && (
-                        <div style={{ marginBottom: 4, paddingLeft: 2 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>
+                        <div className="mb-1 pl-0.5">
+                          <div className="text-[13px] font-semibold text-slate-800">
                             {msg.username}
                           </div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: getRoleColor(msg.role), marginTop: 1 }}>
+                          <div className="mt-0.5 text-[11px] font-semibold" style={{ color: getRoleColor(msg.role) }}>
                             {getRoleLabel(msg.role)}
                           </div>
                         </div>
                       )}
 
-                      <div style={{
-                        background: isMe ? 'linear-gradient(135deg, #1D4ED8, #2563EB)' : '#fff',
-                        color: isMe ? '#fff' : '#1F2937',
-                        padding: msg.file_url ? (isImageMessage ? 8 : '10px 12px') : '9px 13px',
-                        borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                        fontSize: 14, lineHeight: 1.5,
-                        border: isMe ? 'none' : '1px solid #F3F4F6',
-                        wordBreak: 'break-word',
-
-                        minWidth: msg.file_url && !isImageMessage ? 210 : undefined,
-                        boxShadow: isActiveMatch
-                          ? '0 0 0 2px #93C5FD'
-                          : matchesQuery ? '0 0 0 1px #BFDBFE' : '0 1px 3px rgba(0,0,0,0.07)',
-
-                      }}>
+                      <div
+                        className={cn(
+                          'break-words text-sm leading-relaxed shadow-sm',
+                          'rounded-2xl',
+                          isMe ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800',
+                          msg.file_url ? (isImageMessage ? 'p-2' : 'min-w-[210px] px-3 py-2.5') : 'px-3.5 py-2.5',
+                          isActiveMatch ? 'ring-2 ring-blue-300' : '',
+                          !isActiveMatch && matchesQuery ? 'ring-1 ring-blue-200' : ''
+                        )}
+                      >
                         {replyPreview && (
-                          <div style={{
-                            background: isMe ? 'rgba(255,255,255,0.12)' : '#F3F4F6',
-                            borderLeft: `3px solid ${isMe ? 'rgba(255,255,255,0.45)' : '#2563EB'}`,
-                            borderRadius: 8,
-                            padding: '6px 10px',
-                            marginBottom: 8,
-                            fontSize: 12,
-                            lineHeight: 1.3,
-                            color: isMe ? 'rgba(255,255,255,0.95)' : '#6B7280',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            <span style={{ fontWeight: 700, color: isMe ? 'rgba(255,255,255,0.95)' : '#4B5563' }}>{replyPreview.username}: </span>
+                          <div
+                            className={cn(
+                              'mb-2 truncate rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug',
+                              isMe
+                                ? 'border-white/50 bg-white/15 text-white/95'
+                                : 'border-blue-600 bg-slate-100 text-slate-500'
+                            )}
+                          >
+                            <span className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>{replyPreview.username}: </span>
                             {replyPreview.content}
                           </div>
                         )}
                         {!!msg.is_pinned && (
-                          <div style={{ fontSize: 10, marginBottom: 3, color: isMe ? 'rgba(255,255,255,0.7)' : '#2563EB', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
                             <Pin size={9} /> Pinned
                           </div>
                         )}
@@ -1336,16 +1291,13 @@ export default function ChatPage() {
                                 </a>
                               </div>
                             )}
-                            
-                            {msg.content && (
-                              <div style={{ marginTop: 8, fontSize: 13 }}>{msg.content}</div>
-                            )}
+                            {msg.content && <div className="mt-2 text-[13px]">{msg.content}</div>}
                           </div>
                         ) : (
                           msg.content
                         )}
 
-                        <div style={{ fontSize: 10, marginTop: 4, textAlign: 'right', color: isMe ? 'rgba(255,255,255,0.65)' : '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
+                        <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>
                           {formatTime(msg.created_at)}
                           {isMe && <CheckCheck size={12} />}
                         </div>
@@ -1356,16 +1308,16 @@ export default function ChatPage() {
                     {!selectionMode && !isMe && (
                       <div
                         data-msgdropdown="true"
-                        style={{ position: 'relative', opacity: showCtrl ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}
+                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                       >
                         <button
                           onClick={() => setOpenDropdownId(isOpen ? null : msg.id)}
-                          style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: '#E5E7EB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}
+                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
                         >
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div style={{ position: 'absolute', top: 30, left: 0 }}>
+                          <div className="absolute left-0 top-[30px]">
                             {renderDropdown(msg)}
                           </div>
                         )}
@@ -1379,38 +1331,45 @@ export default function ChatPage() {
             </div>
 
             {/* Input Area */}
-            <div style={{ background: '#fff', borderTop: '1px solid #E5E7EB' }}>
+            <div className="border-t border-slate-200 bg-white/90 px-4 pb-4 pt-3 backdrop-blur-sm md:px-5">
               {replyTo && (
-                <div style={{ padding: '8px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 8, background: '#F9FAFB' }}>
+                <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <CornerUpLeft size={13} color="#2563EB" />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#2563EB' }}>{replyTo.username}</div>
-                    <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.content}</div>
+                  <div className="flex-1">
+                    <div className="text-[11px] font-semibold text-blue-600">{replyTo.username}</div>
+                    <div className="truncate text-xs text-slate-500">{replyTo.content}</div>
                   </div>
-                  <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
+                  <button onClick={() => setReplyTo(null)} className="border-0 bg-transparent text-slate-400 transition-all duration-200 hover:text-slate-600">
                     <X size={14} />
                   </button>
                 </div>
               )}
 
-              <form onSubmit={handleSend} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ position: 'relative' }}>
+              <form
+                onSubmit={handleSend}
+                className={cn(
+                  'flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
+                  isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-2'
+                )}
+              >
+                <div className="relative">
                   <button
                     type="button"
                     onClick={() => setShowAttach(!showAttach)}
-                    style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#F3F4F6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}
+                    className={cn(
+                      'flex items-center justify-center rounded-full border-0 bg-slate-100 text-slate-500 transition-all duration-200 hover:bg-slate-200',
+                      isMobile ? 'h-8 w-8' : 'h-9 w-9'
+                    )}
                   >
-                    <Paperclip size={16} />
+                    <Paperclip size={isMobile ? 15 : 16} />
                   </button>
                   {showAttach && (
-                    <div style={{ position: 'absolute', bottom: 44, left: 0, background: '#fff', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', gap: 4, zIndex: 50 }}>
+                    <div className="absolute bottom-11 left-0 z-50 flex min-w-[170px] flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                       {[['Dokumen', FileText, '#2563EB'], ['Gambar', ImageIcon, '#7c3aed']].map(([label, Icon, color]) => (
                         <button
                           key={label} type="button"
                           onClick={() => fileInputRef.current.click()}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          className="flex items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2 text-[13px] whitespace-nowrap text-slate-700 transition-all duration-200 hover:bg-slate-100"
                         >
                           <Icon size={15} color={color} /> Upload {label}
                         </button>
@@ -1421,28 +1380,31 @@ export default function ChatPage() {
 
                 <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
 
-                <input
-                  value={inputText}
-                  onChange={e => setInputText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(e); }}
-                  placeholder="Ketik pesan..."
-                  style={{ flex: 1, padding: '9px 14px', border: '1.5px solid #E5E7EB', borderRadius: 20, fontSize: 14, outline: 'none', background: '#F9FAFB', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                  onFocus={e => e.target.style.borderColor = '#2563EB'}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                />
+                <div className="min-w-0 flex-1">
+                  <input
+                    value={inputText}
+                    onChange={e => setInputText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(e); }}
+                    placeholder="Ketik pesan..."
+                    className={cn(
+                      'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
+                      isMobile ? 'h-9 px-3 text-[13px]' : 'h-10 px-4 text-sm'
+                    )}
+                  />
+                </div>
 
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  style={{
-                    width: 36, height: 36, borderRadius: '50%', border: 'none',
-                    background: inputText.trim() ? 'linear-gradient(135deg, #1D4ED8, #2563EB)' : '#E5E7EB',
-                    cursor: inputText.trim() ? 'pointer' : 'not-allowed',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: inputText.trim() ? '#fff' : '#9CA3AF', flexShrink: 0, transition: 'all 0.2s',
-                  }}
+                  className={cn(
+                    'flex shrink-0 items-center justify-center rounded-full border-0 transition-all duration-200',
+                    isMobile ? 'h-8 w-8' : 'h-9 w-9',
+                    inputText.trim()
+                      ? 'cursor-pointer bg-blue-600 text-white hover:bg-blue-700'
+                      : 'cursor-not-allowed bg-slate-200 text-slate-400'
+                  )}
                 >
-                  <Send size={15} />
+                  <Send size={isMobile ? 14 : 15} />
                 </button>
               </form>
             </div>
@@ -1451,7 +1413,6 @@ export default function ChatPage() {
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
-
           <div style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Directory</span>
@@ -1475,7 +1436,7 @@ export default function ChatPage() {
                   </span>
                 </div>
                 {forumMembers.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '6px 0' }}>\u2014</div>
+                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '6px 0' }}>Belum ada anggota.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {forumMembers.map(member => (
@@ -1529,7 +1490,7 @@ export default function ChatPage() {
                             </div>
                           </div>
                           <a
-                            href={`${SOCKET_URL}/api/messages/download/${file.id}`}
+                            href={`http://localhost:5000/api/messages/download/${file.id}`}
                             target="_blank"
                             rel="noreferrer"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', flexShrink: 0 }}

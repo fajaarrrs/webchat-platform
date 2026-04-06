@@ -14,6 +14,12 @@ const roleBadge = {
   client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46', Icon: UserCircle },
 };
 
+const roleBadgeTone = {
+  admin: 'bg-violet-100 text-violet-700',
+  karyawan: 'bg-blue-100 text-blue-700',
+  client: 'bg-emerald-100 text-emerald-700',
+};
+
 const CROP_SIZE = 280;
 
 export default function SettingsPage() {
@@ -247,6 +253,335 @@ export default function SettingsPage() {
       addToast(err.message, 'error');
     }
   };
+
+  const renderCropModal = () => {
+    if (!cropState) return null;
+    const minScale = Math.max(CROP_SIZE / cropState.naturalW, CROP_SIZE / cropState.naturalH);
+    const maxScale = minScale * 4;
+
+    return (
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+        onMouseMove={handleCropDragMove}
+        onMouseUp={handleCropDragEnd}
+        onMouseLeave={handleCropDragEnd}
+        onTouchMove={handleCropDragMove}
+        onTouchEnd={handleCropDragEnd}
+      >
+        <div
+          style={{ background: '#fff', borderRadius: 20, padding: '28px 32px 28px', width: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', userSelect: 'none' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>Atur Foto Profil</h2>
+              <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 0' }}>Geser gambar &amp; atur ukuran lingkaran</p>
+            </div>
+            <button onClick={handleCropCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4 }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0 16px' }}>
+            <div style={{ position: 'relative' }}>
+              <div
+                onMouseDown={handleCropDragStart}
+                onTouchStart={handleCropDragStart}
+                style={{
+                  width: CROP_SIZE, height: CROP_SIZE,
+                  borderRadius: '50%', overflow: 'hidden',
+                  cursor: isDragging ? 'grabbing' : 'grab',
+                  background: '#E5E7EB', position: 'relative',
+                  boxShadow: '0 0 0 4px #fff, 0 0 0 6px #2563EB',
+                }}
+              >
+                <img
+                  src={cropState.objectUrl}
+                  draggable={false}
+                  alt="crop preview"
+                  style={{
+                    position: 'absolute',
+                    width: cropState.naturalW * cropState.scale,
+                    height: cropState.naturalH * cropState.scale,
+                    left: cropState.offsetX,
+                    top: cropState.offsetY,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                />
+              </div>
+              <p style={{ textAlign: 'center', fontSize: 11, color: '#9CA3AF', marginTop: 10 }}>Pratinjau</p>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Perbesar</label>
+              <span style={{ fontSize: 11, color: '#6B7280' }}>{(cropState.scale / minScale).toFixed(1)}x</span>
+            </div>
+            <input
+              type="range"
+              min={minScale}
+              max={maxScale}
+              step={(maxScale - minScale) / 100}
+              value={cropState.scale}
+              onChange={e => handleZoom(parseFloat(e.target.value))}
+              style={{ width: '100%', cursor: 'pointer', accentColor: '#2563EB' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+              <span style={{ fontSize: 10, color: '#D1D5DB' }}>Min</span>
+              <span style={{ fontSize: 10, color: '#D1D5DB' }}>Maks</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleCropCancel}
+              style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+            >
+              Batalkan
+            </button>
+            <button
+              type="button"
+              onClick={handleCropConfirm}
+              style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Gunakan Foto
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!isAdmin) {
+    const roleTone = roleBadgeTone[user?.role] || roleBadgeTone.client;
+    const navTabs = tabs.filter(({ key }) => key !== 'users');
+
+    return (
+      <>
+        <DashboardLayout hideSidebar>
+          <div className="min-h-screen w-full bg-slate-50">
+            <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <button
+                  onClick={() => navigate(`${nonAdminRouteBase}/chat`)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-300 hover:text-blue-600"
+                >
+                  <ArrowLeft size={14} /> Kembali ke Chat
+                </button>
+                <div className="inline-flex items-center gap-2 text-slate-700">
+                  <Settings size={18} className="text-blue-600" />
+                  <span className="text-lg font-bold">Pengaturan</span>
+                </div>
+              </div>
+
+              <div className="mb-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="relative h-16 w-16 shrink-0 rounded-full ring-4 ring-blue-50">
+                  {user?.avatar ? (
+                    <img
+                      src={`${BASE_URL}${user.avatar}`}
+                      alt="avatar"
+                      className="h-16 w-16 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
+                      {initials}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    title="Ganti foto profil"
+                    className="absolute -bottom-1 -right-1 inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Camera size={13} />
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-lg font-bold text-slate-800">{user?.username}</p>
+                  <p className="truncate text-sm text-slate-500">{user?.email}</p>
+                  <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${roleTone}`}>
+                    <BadgeIcon size={12} /> {badge.label}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-4 flex items-center gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm lg:hidden">
+                {navTabs.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={`inline-flex min-w-max items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                      tab === key
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon size={14} /> {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[220px_1fr] lg:gap-6">
+                <aside className="hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:block">
+                  <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Menu</p>
+                  <nav className="space-y-1">
+                    {navTabs.map(({ key, label, icon: Icon }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setTab(key)}
+                        className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                          tab === key
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Icon size={15} /> {label}
+                      </button>
+                    ))}
+                  </nav>
+                </aside>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div key={tab} className="admin-dash-reveal">
+                    {tab === 'profile' ? (
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-800">Edit Profil</h2>
+                        <p className="mt-1 text-sm text-slate-500">Perbarui data akun agar informasi kamu selalu terbaru.</p>
+
+                        <form onSubmit={handleSaveProfile} className="mt-6 space-y-4">
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p className="text-sm font-semibold text-slate-700">Foto Profil</p>
+                            <p className="mt-1 text-xs text-slate-500">Gunakan foto yang jelas. Format JPG, PNG, atau GIF.</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => profileAvatarInputRef.current?.click()}
+                                disabled={avatarUploading}
+                                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                <Camera size={14} /> {avatarUploading ? 'Mengunggah...' : 'Pilih Foto'}
+                              </button>
+                              {user?.avatar && (
+                                <button
+                                  type="button"
+                                  onClick={handleDeleteAvatar}
+                                  disabled={avatarUploading}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                  <Trash2 size={14} /> Hapus Foto
+                                </button>
+                              )}
+                              <input
+                                ref={profileAvatarInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarChange}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Username</label>
+                            <input
+                              type="text"
+                              value={profileForm.username}
+                              onChange={e => setProfileForm({ ...profileForm, username: e.target.value })}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Email</label>
+                            <input
+                              type="email"
+                              value={profileForm.email}
+                              onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={saving}
+                              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              <Save size={15} /> {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl bg-white shadow-sm">
+                        <h2 className="text-lg font-bold text-slate-800">Ubah Password</h2>
+                        <p className="mt-1 text-sm text-slate-500">Gunakan kombinasi huruf besar, huruf kecil, angka, dan simbol.</p>
+
+                        <form onSubmit={handleChangePass} className="mt-6 space-y-4" autoComplete="off">
+                          {[
+                            { key: 'current', label: 'Password Saat Ini', field: 'current' },
+                            { key: 'new', label: 'Password Baru', field: 'newPass' },
+                            { key: 'confirm', label: 'Konfirmasi Password', field: 'confirm' },
+                          ].map(({ key, label, field }) => (
+                            <div key={key}>
+                              <label className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</label>
+                              <div className="relative">
+                                <input
+                                  type={showPass[key] ? 'text' : 'password'}
+                                  value={passForm[field]}
+                                  onChange={e => setPassForm({ ...passForm, [field]: e.target.value })}
+                                  placeholder={label}
+                                  autoComplete="new-password"
+                                  data-lpignore="true"
+                                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 pr-10 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPass(p => ({ ...p, [key]: !p[key] }))}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-blue-600"
+                                >
+                                  {showPass[key] ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-400">Minimal 6 karakter dan jangan gunakan password yang sama dengan akun lain.</p>
+                            </div>
+                          ))}
+
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={saving}
+                              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              <Save size={15} /> {saving ? 'Menyimpan...' : 'Simpan Password'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </DashboardLayout>
+        {renderCropModal()}
+      </>
+    );
+  }
 
   const containerStyle = isAdmin
     ? {
@@ -723,112 +1058,7 @@ export default function SettingsPage() {
         </div>
       )}
     </DashboardLayout>
-
-    {/* ── Avatar Crop Modal ── */}
-    {cropState && (() => {
-      const minScale = Math.max(CROP_SIZE / cropState.naturalW, CROP_SIZE / cropState.naturalH);
-      const maxScale = minScale * 4;
-      return (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-          onMouseMove={handleCropDragMove}
-          onMouseUp={handleCropDragEnd}
-          onMouseLeave={handleCropDragEnd}
-          onTouchMove={handleCropDragMove}
-          onTouchEnd={handleCropDragEnd}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: 20, padding: '28px 32px 28px', width: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', userSelect: 'none' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>Atur Foto Profil</h2>
-                <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 0' }}>Geser gambar &amp; atur ukuran lingkaran</p>
-              </div>
-              <button onClick={handleCropCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: 4 }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Circular crop area */}
-            <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0 16px' }}>
-              <div style={{ position: 'relative' }}>
-                {/* Crop circle (overflow hidden = circular clip) */}
-                <div
-                  onMouseDown={handleCropDragStart}
-                  onTouchStart={handleCropDragStart}
-                  style={{
-                    width: CROP_SIZE, height: CROP_SIZE,
-                    borderRadius: '50%', overflow: 'hidden',
-                    cursor: isDragging ? 'grabbing' : 'grab',
-                    background: '#E5E7EB', position: 'relative',
-                    boxShadow: '0 0 0 4px #fff, 0 0 0 6px #2563EB',
-                  }}
-                >
-                  <img
-                    src={cropState.objectUrl}
-                    draggable={false}
-                    alt="crop preview"
-                    style={{
-                      position: 'absolute',
-                      width: cropState.naturalW * cropState.scale,
-                      height: cropState.naturalH * cropState.scale,
-                      left: cropState.offsetX,
-                      top: cropState.offsetY,
-                      pointerEvents: 'none',
-                      userSelect: 'none',
-                    }}
-                  />
-                </div>
-                {/* Preview label */}
-                <p style={{ textAlign: 'center', fontSize: 11, color: '#9CA3AF', marginTop: 10 }}>Pratinjau</p>
-              </div>
-            </div>
-
-            {/* Zoom slider */}
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Perbesar</label>
-                <span style={{ fontSize: 11, color: '#6B7280' }}>{(cropState.scale / minScale).toFixed(1)}x</span>
-              </div>
-              <input
-                type="range"
-                min={minScale}
-                max={maxScale}
-                step={(maxScale - minScale) / 100}
-                value={cropState.scale}
-                onChange={e => handleZoom(parseFloat(e.target.value))}
-                style={{ width: '100%', cursor: 'pointer', accentColor: '#2563EB' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                <span style={{ fontSize: 10, color: '#D1D5DB' }}>Min</span>
-                <span style={{ fontSize: 10, color: '#D1D5DB' }}>Maks</span>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={handleCropCancel}
-                style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
-              >
-                Batalkan
-              </button>
-              <button
-                type="button"
-                onClick={handleCropConfirm}
-                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#1D4ED8', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Gunakan Foto
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    })()}
+    {renderCropModal()}
     </>
   );
 }

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../api';
-import { MessageSquare, Clock, ArrowUpRight, HelpCircle } from 'lucide-react';
+import { MessageSquare, Clock, ArrowUpRight, HelpCircle, Hand } from 'lucide-react';
 import useBreakpoint from '../../hooks/useBreakpoint';
 
 const statusStyle = {
@@ -26,7 +26,6 @@ function formatSessionDate(dt) {
 export default function ClientDashboard() {
   const { user } = useAuth();
   const { isMobile, isTablet } = useBreakpoint();
-
   const [stats, setStats] = useState({ activeCount: 0, pendingCount: 0, totalCount: 0 });
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,18 +63,20 @@ export default function ClientDashboard() {
     <DashboardLayout>
       <div style={{ padding: isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px', width: '100%' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ marginBottom: 28 }}>
+          <div className="admin-dash-reveal" style={{ marginBottom: 28, '--dash-delay': '20ms' }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
-              Halo, {user?.username}! 👋
+              Halo, {user?.username}!
+              <span className="admin-dash-wave-icon" aria-hidden="true">
+                <Hand size={24} color="#2563EB" strokeWidth={2.2} />
+              </span>
             </h1>
             <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
               Kelola sesi bantuan dan riwayat chat kamu di sini.
-
             </p>
           </div>
 
-
-          <div style={{
+          <div className="admin-dash-reveal" style={{
+            '--dash-delay': '90ms',
             background: '#1D4ED8',
             borderRadius: 16,
             padding: '26px 28px',
@@ -107,15 +108,15 @@ export default function ClientDashboard() {
               alignItems: 'center',
               gap: 8,
               textDecoration: 'none',
-
             }}>
               <MessageSquare size={16} /> Buka Chat
             </Link>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 24 }}>
-            {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-              <div key={label} style={{
+            {statCards.map(({ label, value, icon: Icon, color, bg }, index) => (
+              <div key={label} className="admin-dash-reveal admin-dash-stat-card" style={{
+                '--dash-delay': `${140 + index * 55}ms`,
                 background: '#fff',
                 borderRadius: 14,
                 padding: '20px 22px',
@@ -137,7 +138,8 @@ export default function ClientDashboard() {
             ))}
           </div>
 
-          <div style={{
+          <div className="admin-dash-reveal" style={{
+            '--dash-delay': '300ms',
             background: '#fff',
             borderRadius: 14,
             padding: 24,
@@ -162,14 +164,16 @@ export default function ClientDashboard() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {sessions.map((item) => {
+                {sessions.map((item, index) => {
                   const status = statusStyle[item.status] || statusStyle.pending;
                   return (
                     <Link
                       key={item.id}
                       to="/client/chat"
                       state={{ forumId: item.id }}
+                      className="admin-dash-activity-item"
                       style={{
+                        '--dash-delay': `${360 + index * 45}ms`,
                         display: 'flex',
                         alignItems: 'center',
                         gap: 14,

@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   Clock3,
   AlertCircle,
+  Hand,
 } from 'lucide-react';
 import { api } from '../../api';
 import useBreakpoint from '../../hooks/useBreakpoint';
@@ -164,9 +165,15 @@ export default function AdminDashboard() {
     <DashboardLayout>
       <div style={{ padding: pagePadding, width: '100%' }}>
         {/* Page Header */}
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
-            {greeting}, {user?.username}! 👋
+        <div
+          className="admin-dash-reveal"
+          style={{ marginBottom: 28, '--dash-delay': '20ms' }}
+        >
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+            {greeting}, {user?.username}!
+            <span className="admin-dash-wave-icon" aria-hidden="true">
+              <Hand size={24} color="#2563EB" strokeWidth={2.2} />
+            </span>
           </h1>
           <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
             Berikut ringkasan aktivitas platform hari ini.
@@ -182,10 +189,12 @@ export default function AdminDashboard() {
             marginBottom: 28,
           }}
         >
-          {statCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
+          {statCards.map(({ label, value, sub, icon: Icon, color, bg }, index) => (
             <div
               key={label}
+              className="admin-dash-reveal admin-dash-stat-card"
               style={{
+                '--dash-delay': `${90 + index * 55}ms`,
                 background: '#fff',
                 borderRadius: 14,
                 padding: 20,
@@ -233,7 +242,10 @@ export default function AdminDashboard() {
         </div>
 
         {/* Perlu Ditindaklanjuti */}
-        <div style={{ marginBottom: 24 }}>
+        <div
+          className="admin-dash-reveal"
+          style={{ marginBottom: 24, '--dash-delay': '300ms' }}
+        >
           <div
             style={{
               background: '#fff',
@@ -250,7 +262,6 @@ export default function AdminDashboard() {
               </h3>
             </div>
 
-
             {followUpItems.length === 0 ? (
               <div style={{ padding: '24px 8px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
                 Belum ada data yang perlu ditindaklanjuti.
@@ -262,7 +273,7 @@ export default function AdminDashboard() {
                     key={id}
                     to={to}
                     state={state}
-
+                    className="admin-dash-followup-card"
                     style={{
                       borderRadius: 12,
                       padding: 16,
@@ -272,16 +283,6 @@ export default function AdminDashboard() {
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       display: 'block',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#FFFFFF';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#F9FAFB';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
                     <div
@@ -308,7 +309,10 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bottom Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: bottomGridColumns, gap: 20 }}>
+        <div
+          className="admin-dash-reveal"
+          style={{ display: 'grid', gridTemplateColumns: bottomGridColumns, gap: 20, '--dash-delay': '380ms' }}
+        >
           {/* Aktivitas Terkini */}
           <div
             style={{
@@ -330,7 +334,11 @@ export default function AdminDashboard() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {activityItems.map((item, i) => (
-                  <div key={`${item.action}-${item.time}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    key={`${item.action}-${item.time}-${i}`}
+                    className="admin-dash-activity-item"
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, '--dash-delay': `${430 + i * 45}ms` }}
+                  >
                     <div
                       style={{
                         width: 34,
@@ -380,6 +388,7 @@ export default function AdminDashboard() {
                 <Link
                   key={to}
                   to={to}
+                  className="admin-dash-quick-action"
                   style={{
                     display: 'flex',
                     alignItems: 'center',

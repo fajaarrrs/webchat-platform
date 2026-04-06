@@ -1,14 +1,15 @@
 ﻿import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
+import useBreakpoint from '../hooks/useBreakpoint';
 import {
   Search, Send, Paperclip, MoreVertical,
-  FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2,
+  FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
   Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown,
-  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight,
+  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, UserCircle2, Settings,
 } from 'lucide-react';
 
 const SOCKET_URL = 'http://localhost:5000';
@@ -82,9 +83,13 @@ function getFileInfo(name) {
 }
 
 export default function ChatPage() {
-  const { user, addToast } = useAuth();
+  const { user, addToast, logout } = useAuth();
+  const { isMobile } = useBreakpoint();
   const location = useLocation();
+  const navigate = useNavigate();
   const initialForumId = location.state?.forumId ?? null;
+  const isCompactChatLayout = user?.role === 'client' || user?.role === 'karyawan';
+  const roleBasePath = user?.role ? `/${user.role}` : '';
 
   const [forums, setForums] = useState([]);
   const [activeForumId, setActiveForumId] = useState(initialForumId);
@@ -96,6 +101,8 @@ export default function ChatPage() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinLink, setJoinLink] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [showFaqModal, setShowFaqModal] = useState(false);
   const [chatTab, setChatTab] = useState('all');
   const [favoriteForumIds, setFavoriteForumIds] = useState([]);
 
@@ -200,9 +207,9 @@ export default function ChatPage() {
   useEffect(() => {
     api.get('/forums').then(data => {
       setForums(sortForumsByActivity(data));
-      if (!initialForumId && data.length > 0) setActiveForumId(data[0].id);
+      if (!initialForumId && data.length > 0 && !isMobile) setActiveForumId(data[0].id);
     });
-  }, []);
+  }, [initialForumId, isMobile]);
 
   useEffect(() => {
     if (!favoriteKey) {
@@ -300,6 +307,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     const handle = e => {
+      if (!e.target.closest('[data-quickmenu]')) setShowQuickMenu(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
+  useEffect(() => {
+    const handle = e => {
       if (!e.target.closest('[data-pinnedmenu]')) setShowPinnedMenu(false);
     };
     document.addEventListener('mousedown', handle);
@@ -346,6 +361,27 @@ export default function ChatPage() {
     setMobileMenu(null);
   };
 
+  const handleCopyMessage = async (msg) => {
+    const payload = msg?.content?.trim()
+      || msg?.file_name
+      || (msg?.file_url ? `${BASE_URL}${msg.file_url}` : '');
+
+    if (!payload) {
+      addToast('Pesan tidak memiliki konten untuk disalin.', 'error');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      addToast('Pesan berhasil disalin.', 'success');
+    } catch {
+      addToast('Gagal menyalin pesan.', 'error');
+    }
+
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+  };
+
   const handleTouchStart = (e, msg) => {
     longPressTimer.current = setTimeout(() => setMobileMenu({ msg }), 600);
   };
@@ -355,7 +391,7 @@ export default function ChatPage() {
     e.preventDefault();
     const raw = joinLink.trim();
     if (!raw) return;
-    const match = raw.match(/\/chat\/join\/([a-f0-9]+)/);
+    const match = raw.match(/\/chat\/join\/([^/?#\s]+)/i);
     const token = match ? match[1] : raw;
     setJoinLoading(true);
     try {
@@ -527,6 +563,24 @@ export default function ChatPage() {
     setShowDirectory(false);
   };
 
+  const handleShareForumLink = async () => {
+    const joinIdentifier = activeForum?.slug || activeForum?.token;
+    if (!joinIdentifier) {
+      addToast('Link forum tidak tersedia.', 'error');
+      setShowHeaderMenu(false);
+      return;
+    }
+
+    const joinLink = `${window.location.origin}/chat/join/${joinIdentifier}`;
+    try {
+      await navigator.clipboard.writeText(joinLink);
+      addToast('Link forum berhasil disalin.', 'success');
+    } catch {
+      addToast('Gagal menyalin link forum.', 'error');
+    }
+    setShowHeaderMenu(false);
+  };
+
   const handleDeleteSelectedMessages = () => {
     if (!activeForumId || selectedMessageIds.length === 0) return;
     const selected = messages.filter(msg => selectedMessageIds.includes(msg.id));
@@ -551,6 +605,33 @@ export default function ChatPage() {
     setSelectedMessageIds([]);
   };
 
+  const handleOpenSettings = () => {
+    if (!roleBasePath) return;
+    navigate(`${roleBasePath}/settings`, { state: { initialTab: 'password' } });
+    setShowQuickMenu(false);
+  };
+
+  const handleOpenProfile = () => {
+    if (!roleBasePath) return;
+    navigate(`${roleBasePath}/settings`, { state: { initialTab: 'profile' } });
+    setShowQuickMenu(false);
+  };
+
+  const handleOpenFaq = () => {
+    setShowFaqModal(true);
+    setShowQuickMenu(false);
+  };
+
+  const handleOpenJoinModal = () => {
+    setShowJoinModal(true);
+    setShowQuickMenu(false);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const activeForum = forums.find(f => f.id === activeForumId);
   const isActiveForumFavorite = activeForumId ? favoriteForumIds.includes(activeForumId) : false;
   const tabForums = chatTab === 'favorites'
@@ -559,6 +640,8 @@ export default function ChatPage() {
   const filteredForums = tabForums.filter(f =>
     f.title.toLowerCase().includes(searchGroup.toLowerCase())
   );
+  const showForumListPanel = !isMobile || !activeForumId;
+  const showChatPanel = !isMobile || !!activeForumId;
 
   const normalizedMessageSearch = messageSearch.trim().toLowerCase();
   const searchMatches = normalizedMessageSearch
@@ -593,6 +676,7 @@ export default function ChatPage() {
       }}
     >
       {[
+        { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
         { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
         ...(canPin() ? [{
           icon: msg.is_pinned ? PinOff : Pin,
@@ -624,29 +708,56 @@ export default function ChatPage() {
   );
 
   return (
-    <DashboardLayout>
+    <DashboardLayout hideSidebar={isCompactChatLayout}>
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
 
         {/* LEFT PANEL */}
+        {showForumListPanel && (
         <div style={{
-          width: 300, borderRight: '1px solid #E5E7EB', background: '#fff',
+          width: isMobile ? '100%' : 300,
+          borderRight: isMobile ? 'none' : '1px solid #E5E7EB',
+          background: '#fff',
           display: 'flex', flexDirection: 'column', flexShrink: 0,
         }}>
           <div style={{ padding: '14px 16px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
               {user?.role !== 'admin' && (
-                <button
-                  onClick={() => setShowJoinModal(true)}
-                  title="Gabung Forum"
-                  style={{
-                    width: 32, height: 32, borderRadius: 8, border: '1.5px solid #E5E7EB',
-                    background: '#fff', color: '#6B7280', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <UserPlus size={15} />
-                </button>
+                <div data-quickmenu="true" style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setShowQuickMenu(v => !v)}
+                    title="Menu"
+                    style={{
+                      width: 32, height: 32, borderRadius: 8, border: '1.5px solid #E5E7EB',
+                      background: showQuickMenu ? '#EFF6FF' : '#fff', color: showQuickMenu ? '#2563EB' : '#6B7280', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <MoreVertical size={15} />
+                  </button>
+
+                  {showQuickMenu && (
+                    <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
+                      {[
+                        { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
+                        { key: 'profile', label: 'Profile', icon: UserCircle2, onClick: handleOpenProfile },
+                        { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
+                        { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
+                        { key: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, danger: true },
+                      ].map(({ key, label, icon: Icon, onClick }) => (
+                        <button
+                          key={key}
+                          onClick={onClick}
+                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13, color: key === 'logout' ? '#DC2626' : '#374151', textAlign: 'left' }}
+                          onMouseEnter={e => e.currentTarget.style.background = key === 'logout' ? '#FEF2F2' : '#F9FAFB'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                          <Icon size={14} /> {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -776,12 +887,15 @@ export default function ChatPage() {
             })}
           </div>
         </div>
+        )}
 
         {/* CENTER PANEL */}
-        {!activeForum ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F9FAFB', color: '#9CA3AF' }}>
-            <MessagesSquare size={48} style={{ marginBottom: 14, opacity: 0.3 }} />
-            <p style={{ fontSize: 14 }}>Pilih forum untuk mulai chat.</p>
+        {showChatPanel && (!activeForum ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', color: '#9CA3AF' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <MessagesSquare size={48} style={{ marginBottom: 14, opacity: 0.3 }} />
+              <p style={{ fontSize: 14 }}>Pilih forum untuk mulai chat.</p>
+            </div>
           </div>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 }}>
@@ -791,8 +905,18 @@ export default function ChatPage() {
               padding: '12px 20px', background: '#fff',
               borderBottom: '1px solid #E5E7EB',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              position: 'relative', zIndex: 320,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {isMobile && (
+                  <button
+                    onClick={() => setActiveForumId(null)}
+                    title="Kembali ke daftar forum"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280' }}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                )}
                 <div style={{
                   width: 38, height: 38, borderRadius: '50%',
                   background: getColor(forums.findIndex(f => f.id === activeForumId)),
@@ -831,6 +955,7 @@ export default function ChatPage() {
                     <div style={{ position: 'absolute', top: 40, right: 0, width: 220, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
                       {[
                         { key: 'info', label: 'Grup Info', icon: Info, onClick: () => { setShowDirectory(true); setShowHeaderMenu(false); } },
+                        { key: 'share-link', label: 'Share link', icon: Link2, onClick: handleShareForumLink },
                         { key: 'favorite', label: isActiveForumFavorite ? 'Remove from favorites' : 'Add to favorites', icon: Star, onClick: () => { if (activeForumId) toggleFavoriteForum(activeForumId); setShowHeaderMenu(false); } },
                         { key: 'clear', label: 'Clear chat', icon: Eraser, onClick: handleClearChat, danger: user?.role !== 'admin' },
                         { key: 'exit', label: 'Exit group', icon: LogOut, onClick: handleExitGroup, danger: true },
@@ -1027,7 +1152,7 @@ export default function ChatPage() {
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div style={{ position: 'absolute', bottom: 30, right: 0 }}>
+                          <div style={{ position: 'absolute', top: 30, right: 0 }}>
                             {renderDropdown(msg)}
                           </div>
                         )}
@@ -1216,7 +1341,7 @@ export default function ChatPage() {
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div style={{ position: 'absolute', bottom: 30, left: 0 }}>
+                          <div style={{ position: 'absolute', top: 30, left: 0 }}>
                             {renderDropdown(msg)}
                           </div>
                         )}
@@ -1298,7 +1423,7 @@ export default function ChatPage() {
               </form>
             </div>
           </div>
-        )}
+        ))}
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
@@ -1409,6 +1534,7 @@ export default function ChatPage() {
           >
             <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 2, margin: '0 auto 16px' }} />
             {[
+              { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(mobileMenu.msg), color: '#374151' },
               { icon: Reply, label: 'Reply', onClick: () => handleReply(mobileMenu.msg), color: '#374151' },
               ...(canPin() ? [{ icon: mobileMenu.msg.is_pinned ? PinOff : Pin, label: mobileMenu.msg.is_pinned ? 'Unpin' : 'Pin', onClick: () => handlePin(mobileMenu.msg), color: '#374151' }] : []),
               ...(canDelete(mobileMenu.msg) ? [{ icon: Trash2, label: 'Delete', onClick: () => handleDelete(mobileMenu.msg), color: '#DC2626' }] : []),
@@ -1429,6 +1555,39 @@ export default function ChatPage() {
             >
               Batal
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* FAQ Modal */}
+      {showFaqModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowFaqModal(false); }}
+        >
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 8 }}><HelpCircle size={18} color="#2563EB" /></div>
+                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>FAQ</h2>
+              </div>
+              <button onClick={() => setShowFaqModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13, color: '#4B5563' }}>
+              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                <strong style={{ color: '#1F2937' }}>Bagaimana cara gabung forum?</strong>
+                <p style={{ margin: '6px 0 0' }}>Buka menu titik tiga, pilih Gabung Forum, lalu paste link atau token dari admin.</p>
+              </div>
+              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                <strong style={{ color: '#1F2937' }}>Bagaimana edit profil?</strong>
+                <p style={{ margin: '6px 0 0' }}>Buka menu titik tiga lalu pilih Profile untuk mengubah data akun.</p>
+              </div>
+              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                <strong style={{ color: '#1F2937' }}>Di mana pengaturan akun?</strong>
+                <p style={{ margin: '6px 0 0' }}>Pilih Settings pada menu titik tiga untuk membuka halaman pengaturan.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

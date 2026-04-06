@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import useBreakpoint from '../hooks/useBreakpoint';
 
 const forumColors = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#0891B2', '#BE185D'];
 const SOCKET_URL = 'http://localhost:5000';
@@ -46,6 +47,7 @@ const cardBase = {
 
 export default function ForumPage() {
   const { user, addToast } = useAuth();
+  const { isMobile, isTablet } = useBreakpoint();
   const navigate = useNavigate();
 
   const [forums, setForums] = useState([]);
@@ -195,9 +197,12 @@ export default function ForumPage() {
     transition: 'all 0.15s ease',
   });
 
+  const pagePadding = isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px';
+  const statsColumns = isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))';
+
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: pagePadding, width: '100%' }}>
         {/* Header */}
         <div
           style={{
@@ -212,7 +217,7 @@ export default function ForumPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <MessagesSquare size={22} color="#2563EB" />
-              <h1 style={{ fontSize: 30, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+              <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, color: '#1F2937', margin: 0 }}>
                 Forum
               </h1>
             </div>
@@ -227,13 +232,13 @@ export default function ForumPage() {
           <button
             onClick={() => (isAdmin ? navigate('/admin/create-link') : setShowJoinModal(true))}
             style={{
-              padding: '11px 18px',
+              padding: isMobile ? '10px 14px' : '11px 18px',
               borderRadius: 10,
               border: 'none',
               background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
               color: '#fff',
               fontWeight: 700,
-              fontSize: 14,
+              fontSize: isMobile ? 13 : 14,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -250,7 +255,7 @@ export default function ForumPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: statsColumns,
             gap: 16,
             marginBottom: 20,
           }}
@@ -294,7 +299,7 @@ export default function ForumPage() {
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ position: 'relative', flex: 1, minWidth: 260, maxWidth: 420 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 220, maxWidth: isMobile ? '100%' : 420 }}>
               <Search
                 size={15}
                 style={{
@@ -411,7 +416,7 @@ export default function ForumPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+              gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 250 : 320}px, 1fr))`,
               gap: 18,
             }}
           >

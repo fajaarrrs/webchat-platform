@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../api';
+import useBreakpoint from '../../hooks/useBreakpoint';
 
 const typeColor = { join: '#059669', chat: '#2563EB', link: '#7c3aed', forum: '#d97706', done: '#6B7280' };
 const typeBg = { join: '#ecfdf5', chat: '#eff6ff', link: '#f5f3ff', forum: '#fffbeb', done: '#f9fafb' };
@@ -36,6 +37,7 @@ function toRelativeTime(dt) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const { isMobile, isTablet } = useBreakpoint();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
 
@@ -153,9 +155,14 @@ export default function AdminDashboard() {
     { label: 'Forum Terbaru', value: recentForums[0]?.title || '—', sub: 'Forum terakhir', icon: TrendingUp, color: '#d97706', bg: '#fffbeb' },
   ];
 
+  const pagePadding = isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px';
+  const statGridColumns = isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))';
+  const followUpGridColumns = isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))';
+  const bottomGridColumns = isMobile ? '1fr' : '1fr 1fr';
+
   return (
     <DashboardLayout>
-      <div style={{ padding: '32px 36px', width: '100%' }}>
+      <div style={{ padding: pagePadding, width: '100%' }}>
         {/* Page Header */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
@@ -170,7 +177,7 @@ export default function AdminDashboard() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gridTemplateColumns: statGridColumns,
             gap: 16,
             marginBottom: 28,
           }}
@@ -248,7 +255,7 @@ export default function AdminDashboard() {
                 Belum ada data yang perlu ditindaklanjuti.
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: followUpGridColumns, gap: 14 }}>
                 {followUpItems.map(({ id, title, desc, icon: Icon, color, bg, to, state }) => (
                   <Link
                     key={id}
@@ -299,7 +306,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bottom Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: bottomGridColumns, gap: 20 }}>
           {/* Aktivitas Terkini */}
           <div
             style={{

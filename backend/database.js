@@ -7,6 +7,37 @@ const db = new Database(path.join(__dirname, 'webchat.db'));
 // Enable WAL mode for better concurrent read performance
 db.pragma('journal_mode = WAL');
 
+function slugifyText(input = '') {
+  return input
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 40) || 'forum';
+}
+
+function generateUniqueForumSlug(base, forumIdToExclude = null) {
+  let candidate = base;
+  let suffix = 2;
+
+  while (true) {
+    const slugConflict = forumIdToExclude
+      ? db.prepare('SELECT id FROM forums WHERE slug = ? AND id != ?').get(candidate, forumIdToExclude)
+      : db.prepare('SELECT id FROM forums WHERE slug = ?').get(candidate);
+
+    const tokenConflict = forumIdToExclude
+      ? db.prepare('SELECT id FROM forums WHERE token = ? AND id != ?').get(candidate, forumIdToExclude)
+      : db.prepare('SELECT id FROM forums WHERE token = ?').get(candidate);
+
+    if (!slugConflict && !tokenConflict) return candidate;
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+}
+
 function initDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -24,6 +55,7 @@ function initDatabase() {
       project TEXT NOT NULL,
       description TEXT DEFAULT '',
       token TEXT NOT NULL UNIQUE,
+      slug TEXT,
       created_by INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id)
@@ -96,6 +128,21 @@ function initDatabase() {
   const forumReadCols = db.prepare('PRAGMA table_info(forum_reads)').all().map(c => c.name);
   if (forumReadCols.length > 0 && !forumReadCols.includes('last_read_message_id')) {
     db.exec('ALTER TABLE forum_reads ADD COLUMN last_read_message_id INTEGER');
+  }
+
+  const forumCols = db.prepare('PRAGMA table_info(forums)').all().map(c => c.name);
+  if (!forumCols.includes('slug')) {
+    db.exec('ALTER TABLE forums ADD COLUMN slug TEXT');
+  }
+
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_forums_slug_unique ON forums(slug) WHERE slug IS NOT NULL');
+
+  const forumsWithoutSlug = db.prepare("SELECT id, title FROM forums WHERE slug IS NULL OR TRIM(slug) = ''").all();
+  const updateSlug = db.prepare('UPDATE forums SET slug = ? WHERE id = ?');
+  for (const forum of forumsWithoutSlug) {
+    const base = slugifyText(forum.title || 'forum');
+    const uniqueSlug = generateUniqueForumSlug(base, forum.id);
+    updateSlug.run(uniqueSlug, forum.id);
   }
 
   // Seed admin user if none exists

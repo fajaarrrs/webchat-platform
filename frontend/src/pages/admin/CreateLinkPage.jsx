@@ -3,9 +3,11 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen } from 'lucide-react';
+import useBreakpoint from '../../hooks/useBreakpoint';
 
 export default function CreateLinkPage() {
   const { addToast } = useAuth();
+  const { isMobile, isTablet } = useBreakpoint();
   const [links, setLinks] = useState([]);
   const [form, setForm] = useState({ title: '', project: '', description: '' });
   const [search, setSearch] = useState('');
@@ -43,8 +45,8 @@ export default function CreateLinkPage() {
     }
   };
 
-  const handleCopy = (token) => {
-    const fullUrl = `${window.location.origin}/chat/join/${token}`;
+  const handleCopy = (identifier) => {
+    const fullUrl = `${window.location.origin}/chat/join/${identifier}`;
     navigator.clipboard
       .writeText(fullUrl)
       .then(() => addToast('Link berhasil disalin!', 'success'))
@@ -98,12 +100,13 @@ export default function CreateLinkPage() {
   };
 
   const isDisabled = loading || !form.title.trim() || !form.project.trim();
+  const pagePadding = isMobile ? '20px 14px' : isTablet ? '28px 20px' : '40px';
 
   return (
     <DashboardLayout>
       <div
         style={{
-          padding: '40px',
+          padding: pagePadding,
           maxWidth: '1100px',
           margin: '0 auto',
           fontFamily: 'Inter, sans-serif',
@@ -144,7 +147,7 @@ export default function CreateLinkPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 220 : 280}px, 1fr))`,
                 gap: '20px',
                 marginBottom: '20px',
               }}
@@ -290,7 +293,7 @@ export default function CreateLinkPage() {
                 placeholder="Cari project..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: '36px', width: '240px' }}
+                style={{ ...inputStyle, paddingLeft: '36px', width: isMobile ? '100%' : '240px' }}
                 onFocus={(e) => (e.target.style.borderColor = '#2563EB')}
                 onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
               />
@@ -339,7 +342,9 @@ export default function CreateLinkPage() {
                 </thead>
 
                 <tbody>
-                  {filteredLinks.map((link) => (
+                  {filteredLinks.map((link) => {
+                    const joinIdentifier = link.slug || link.token;
+                    return (
                     <tr
                       key={link.id}
                       style={{ borderTop: '1px solid #F3F4F6' }}
@@ -362,7 +367,7 @@ export default function CreateLinkPage() {
                             border: '1px solid #BAE6FD',
                           }}
                         >
-                          /chat/join/{link.token}
+                          /chat/join/{joinIdentifier}
                         </code>
                       </td>
 
@@ -388,7 +393,7 @@ export default function CreateLinkPage() {
                       <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button
-                            onClick={() => handleCopy(link.token)}
+                            onClick={() => handleCopy(joinIdentifier)}
                             title="Salin link"
                             style={{
                               border: '1px solid #E5E7EB',
@@ -417,7 +422,7 @@ export default function CreateLinkPage() {
                           </button>
 
                           <a
-                            href={`/chat/join/${link.token}`}
+                            href={`/chat/join/${joinIdentifier}`}
                             title="Buka link"
                             style={{
                               border: '1px solid #E5E7EB',
@@ -496,7 +501,7 @@ export default function CreateLinkPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             )}

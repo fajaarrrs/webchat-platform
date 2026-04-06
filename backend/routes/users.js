@@ -17,7 +17,7 @@ router.get("/", authenticate, requireAdmin, (req, res) => {
 
 // PUT /api/users/me — update own profile
 router.put("/me", authenticate, (req, res) => {
-  const { username, email, currentPassword, newPassword } = req.body;
+  const { username, email, newPassword } = req.body;
   const userId = req.user.id;
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
@@ -38,17 +38,12 @@ router.put("/me", authenticate, (req, res) => {
   }
 
   if (newPassword) {
-    if (
-      !currentPassword ||
-      !bcrypt.compareSync(currentPassword, user.password_hash)
-    ) {
-      return res.status(400).json({ error: "Password saat ini salah." });
-    }
     if (newPassword.length < 6) {
       return res
         .status(400)
         .json({ error: "Password baru minimal 6 karakter." });
     }
+
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
       bcrypt.hashSync(newPassword, 10),
       userId,

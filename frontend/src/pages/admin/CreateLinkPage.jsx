@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen } from 'lucide-react';
 import useBreakpoint from '../../hooks/useBreakpoint';
+import './CreateLinkPage.css';
 
 export default function CreateLinkPage() {
   const { addToast } = useAuth();
@@ -148,7 +149,6 @@ export default function CreateLinkPage() {
     </tr>
   );
   
-  const isDisabled = loading || !form.title.trim() || !form.project.trim();
   const pagePadding = isMobile ? '20px 14px' : isTablet ? '28px 20px' : '40px';
 
   return (
@@ -262,7 +262,13 @@ export default function CreateLinkPage() {
                 value={search}
                 className="link-input search-input"
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: '36px', width: isMobile ? '100%' : '240px' }}
+                style={{
+                  width: isMobile ? '100%' : '240px',
+                  paddingLeft: '36px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '10px',
+                  background: '#ffffff',
+                }}
                 onFocus={(e) => (e.target.style.borderColor = '#2563EB')}
                 onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
               />

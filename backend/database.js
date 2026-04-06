@@ -43,11 +43,37 @@ function initDatabase() {
       forum_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
       content TEXT NOT NULL,
+      file_url TEXT,
+      file_name TEXT,
+      file_type TEXT,
+      is_pinned INTEGER NOT NULL DEFAULT 0,
+      reply_to_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (forum_id) REFERENCES forums(id),
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (reply_to_id) REFERENCES messages(id)
     );
   `);
+
+  // Lightweight migrations for existing databases.
+  const messageColumns = db.prepare('PRAGMA table_info(messages)').all();
+  const hasColumn = (name) => messageColumns.some((col) => col.name === name);
+
+  if (!hasColumn('file_url')) {
+    db.exec('ALTER TABLE messages ADD COLUMN file_url TEXT');
+  }
+  if (!hasColumn('file_name')) {
+    db.exec('ALTER TABLE messages ADD COLUMN file_name TEXT');
+  }
+  if (!hasColumn('file_type')) {
+    db.exec('ALTER TABLE messages ADD COLUMN file_type TEXT');
+  }
+  if (!hasColumn('is_pinned')) {
+    db.exec('ALTER TABLE messages ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!hasColumn('reply_to_id')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_to_id INTEGER');
+  }
 
   // Seed admin user if none exists
   const adminExists = db.prepare("SELECT id FROM users WHERE role = 'admin'").get();

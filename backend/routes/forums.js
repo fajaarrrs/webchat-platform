@@ -5,6 +5,43 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
+function getSessionStatus(lastActivity, hasMessages) {
+  if (!hasMessages) return 'pending';
+  if (!lastActivity) return 'pending';
+
+  const parsed = new Date(lastActivity.endsWith('Z') ? lastActivity : `${lastActivity.replace(' ', 'T')}Z`);
+  if (Number.isNaN(parsed.getTime())) return 'pending';
+
+  const diffMs = Date.now() - parsed.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  return diffMs <= dayMs ? 'active' : 'done';
+}
+
+function isSameJakartaDay(dateValue) {
+  if (!dateValue) return false;
+  const parsed = new Date(dateValue.endsWith('Z') ? dateValue : `${dateValue.replace(' ', 'T')}Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return fmt.format(parsed) === fmt.format(new Date());
+}
+
+function toSlug(value = '') {
+  return String(value)
+    .toLowerCase()
+    .trim()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // GET /api/forums — admin gets all, others get only their forums
 router.get('/', authenticate, (req, res) => {
   let forums;
@@ -67,7 +104,25 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
 
 // POST /api/forums/join/:token — join forum via link token
 router.post('/join/:token', authenticate, (req, res) => {
-  const forum = db.prepare('SELECT * FROM forums WHERE token = ?').get(req.params.token);
+  const identifier = String(req.params.token || '').trim();
+  if (!identifier) {
+    return res.status(400).json({ error: 'Token/link forum tidak valid.' });
+  }
+
+  // Primary lookup by token
+  let forum = db.prepare('SELECT * FROM forums WHERE token = ?').get(identifier);
+
+  // Fallback lookup by slug title or title-project (for human-friendly links)
+  if (!forum) {
+    const incomingSlug = toSlug(identifier);
+    const allForums = db.prepare('SELECT * FROM forums').all();
+    forum = allForums.find((item) => {
+      const titleSlug = toSlug(item.title);
+      const titleProjectSlug = toSlug(`${item.title}-${item.project}`);
+      return incomingSlug === titleSlug || incomingSlug === titleProjectSlug;
+    });
+  }
+
   if (!forum) return res.status(404).json({ error: 'Link tidak valid atau forum tidak ditemukan.' });
 
   db.prepare(
@@ -75,6 +130,150 @@ router.post('/join/:token', authenticate, (req, res) => {
   ).run(forum.id, req.user.id);
 
   res.json({ forum_id: forum.id, title: forum.title, project: forum.project });
+});
+
+// GET /api/forums/dashboard/client — client dashboard summary
+router.get('/dashboard/client', authenticate, (req, res) => {
+  if (req.user.role !== 'client') {
+    return res.status(403).json({ error: 'Hanya client yang dapat mengakses data dashboard ini.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      f.id,
+      f.title,
+      f.project,
+      (
+        SELECT m.content
+        FROM messages m
+        WHERE m.forum_id = f.id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_preview,
+      (
+        SELECT m.created_at
+        FROM messages m
+        WHERE m.forum_id = f.id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_activity,
+      (
+        SELECT u.username
+        FROM messages m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.forum_id = f.id AND u.role IN ('admin', 'karyawan')
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS staff_name,
+      (
+        SELECT COUNT(*)
+        FROM messages m
+        WHERE m.forum_id = f.id
+      ) AS message_count,
+      f.created_at
+    FROM forums f
+    JOIN forum_members fm ON fm.forum_id = f.id AND fm.user_id = ?
+    ORDER BY COALESCE((
+      SELECT m.created_at
+      FROM messages m
+      WHERE m.forum_id = f.id
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    ), f.created_at) DESC
+  `).all(req.user.id);
+
+  const sessions = rows.map((row) => {
+    const hasMessages = Number(row.message_count || 0) > 0;
+    const status = getSessionStatus(row.last_activity, hasMessages);
+    return {
+      id: row.id,
+      title: row.title,
+      project: row.project,
+      staff_name: row.staff_name || 'Belum ada staff',
+      last_preview: row.last_preview || 'Belum ada pesan di forum ini.',
+      last_activity: row.last_activity || row.created_at,
+      status,
+    };
+  });
+
+  const stats = {
+    activeCount: sessions.filter((s) => s.status === 'active').length,
+    pendingCount: sessions.filter((s) => s.status === 'pending').length,
+    totalCount: sessions.length,
+  };
+
+  res.json({ stats, sessions });
+});
+
+// GET /api/forums/dashboard/karyawan — karyawan dashboard summary
+router.get('/dashboard/karyawan', authenticate, (req, res) => {
+  if (req.user.role !== 'karyawan') {
+    return res.status(403).json({ error: 'Hanya karyawan yang dapat mengakses data dashboard ini.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      f.id,
+      f.project,
+      (
+        SELECT m.content
+        FROM messages m
+        WHERE m.forum_id = f.id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_preview,
+      (
+        SELECT m.created_at
+        FROM messages m
+        WHERE m.forum_id = f.id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_activity,
+      (
+        SELECT u.username
+        FROM messages m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.forum_id = f.id AND u.role = 'client'
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS client_name,
+      (
+        SELECT COUNT(*)
+        FROM messages m
+        WHERE m.forum_id = f.id
+      ) AS message_count,
+      f.created_at
+    FROM forums f
+    JOIN forum_members fm ON fm.forum_id = f.id AND fm.user_id = ?
+    ORDER BY COALESCE((
+      SELECT m.created_at
+      FROM messages m
+      WHERE m.forum_id = f.id
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    ), f.created_at) DESC
+  `).all(req.user.id);
+
+  const queue = rows.map((row) => {
+    const hasMessages = Number(row.message_count || 0) > 0;
+    const status = getSessionStatus(row.last_activity, hasMessages);
+    return {
+      id: row.id,
+      client_name: row.client_name || 'Client',
+      project: row.project,
+      last_preview: row.last_preview || 'Belum ada pesan di forum ini.',
+      last_activity: row.last_activity || row.created_at,
+      status,
+    };
+  });
+
+  const stats = {
+    activeCount: queue.filter((q) => q.status === 'active').length,
+    pendingCount: queue.filter((q) => q.status === 'pending').length,
+    handledTodayCount: queue.filter((q) => isSameJakartaDay(q.last_activity)).length,
+  };
+
+  res.json({ stats, queue });
 });
 
 // GET /api/forums/:id/members — list forum members (admin or forum member)
@@ -114,6 +313,31 @@ router.get('/:id/members', authenticate, (req, res) => {
   `).all(forumId);
 
   return res.json(members);
+});
+
+// DELETE /api/forums/:id/leave — leave forum (member only)
+router.delete('/:id/leave', authenticate, (req, res) => {
+  const forumId = parseInt(req.params.id, 10);
+  if (Number.isNaN(forumId)) {
+    return res.status(400).json({ error: 'Forum ID tidak valid.' });
+  }
+
+  const forum = db.prepare('SELECT id FROM forums WHERE id = ?').get(forumId);
+  if (!forum) {
+    return res.status(404).json({ error: 'Forum tidak ditemukan.' });
+  }
+
+  const membership = db.prepare(
+    'SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?'
+  ).get(forumId, req.user.id);
+
+  if (!membership) {
+    return res.status(404).json({ error: 'Anda bukan anggota forum ini.' });
+  }
+
+  db.prepare('DELETE FROM forum_members WHERE forum_id = ? AND user_id = ?').run(forumId, req.user.id);
+
+  return res.json({ message: 'Berhasil keluar dari forum.' });
 });
 
 // DELETE /api/forums/:id — delete forum (admin only)

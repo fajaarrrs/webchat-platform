@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 
@@ -25,6 +26,7 @@ const io = new Server(server, {
 // Middleware
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Init DB (creates tables + seeds admin)
 initDatabase();
@@ -52,13 +54,42 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`🟢 Connected: ${socket.user.username} (${socket.id})`);
 
+  const canAccessForum = (forumId) => {
+    if (socket.user.role === 'admin') return true;
+    const membership = db.prepare(
+      'SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?'
+    ).get(forumId, socket.user.id);
+    return !!membership;
+  };
+
+  const emitForumPreview = (forumId) => {
+    const latest = db.prepare(`
+      SELECT m.id, m.content, m.file_name, m.file_type, m.created_at,
+             u.id AS user_id, u.username, u.role
+      FROM messages m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.forum_id = ?
+      ORDER BY m.created_at DESC, m.id DESC
+      LIMIT 1
+    `).get(forumId);
+
+    io.to(`forum:${forumId}`).emit('forum_preview_updated', {
+      id: forumId,
+      forum_id: forumId,
+      last_message: latest?.content || '',
+      last_file_name: latest?.file_name || null,
+      last_file_type: latest?.file_type || null,
+      last_activity: latest?.created_at || null,
+      last_sender_id: latest?.user_id || null,
+      last_sender_username: latest?.username || null,
+      last_sender_role: latest?.role || null,
+    });
+  };
+
   // Join a forum room (verify membership first)
   socket.on('join_forum', (forumId) => {
     const fid = parseInt(forumId);
-    const allowed =
-      socket.user.role === 'admin' ||
-      db.prepare('SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?')
-        .get(fid, socket.user.id);
+    const allowed = canAccessForum(fid);
     if (allowed) {
       socket.join(`forum:${fid}`);
     }
@@ -70,32 +101,96 @@ io.on('connection', (socket) => {
   });
 
   // Send a message
-  socket.on('send_message', ({ forumId, content }) => {
+  socket.on('send_message', ({ forumId, content, replyToId }) => {
     const fid = parseInt(forumId);
+    const replyId = replyToId ? parseInt(replyToId) : null;
     if (!content?.trim()) return;
 
     // Verify membership
-    const allowed =
-      socket.user.role === 'admin' ||
-      db.prepare('SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?')
-        .get(fid, socket.user.id);
+    const allowed = canAccessForum(fid);
     if (!allowed) return;
 
     // Persist to DB
+    let safeReplyId = null;
+    if (!Number.isNaN(replyId) && replyId) {
+      const repliedMessage = db.prepare(
+        'SELECT id FROM messages WHERE id = ? AND forum_id = ?'
+      ).get(replyId, fid);
+      if (repliedMessage) {
+        safeReplyId = replyId;
+      }
+    }
+
     const result = db.prepare(
-      'INSERT INTO messages (forum_id, user_id, content) VALUES (?, ?, ?)'
-    ).run(fid, socket.user.id, content.trim());
+      'INSERT INTO messages (forum_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?)'
+    ).run(fid, socket.user.id, content.trim(), safeReplyId);
 
     const message = db.prepare(`
-      SELECT m.id, m.content, m.created_at,
-             u.id as user_id, u.username, u.role
+      SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
+             m.is_pinned, m.reply_to_id, m.created_at,
+             u.username, u.role,
+             ru.username AS reply_username,
+             rm.content AS reply_content,
+             rm.file_name AS reply_file_name,
+             rm.file_url AS reply_file_url,
+             rm.file_type AS reply_file_type
       FROM messages m
       JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages rm ON m.reply_to_id = rm.id
+      LEFT JOIN users ru ON rm.user_id = ru.id
       WHERE m.id = ?
     `).get(result.lastInsertRowid);
 
     // Broadcast to everyone in the room (including sender)
     io.to(`forum:${fid}`).emit('new_message', message);
+    emitForumPreview(fid);
+  });
+
+  // Toggle pin for a message (admin only)
+  socket.on('pin_message', ({ messageId, forumId }) => {
+    if (socket.user.role !== 'admin') return;
+
+    const mid = parseInt(messageId);
+    const fid = parseInt(forumId);
+    if (isNaN(mid) || isNaN(fid)) return;
+
+    if (!canAccessForum(fid)) return;
+
+    const existing = db.prepare(
+      'SELECT id, is_pinned FROM messages WHERE id = ? AND forum_id = ?'
+    ).get(mid, fid);
+    if (!existing) return;
+
+    const isPinned = existing.is_pinned ? 0 : 1;
+    db.prepare('UPDATE messages SET is_pinned = ? WHERE id = ?').run(isPinned, mid);
+
+    io.to(`forum:${fid}`).emit('message_pinned', {
+      messageId: mid,
+      is_pinned: !!isPinned,
+    });
+  });
+
+  // Delete message (admin or message owner)
+  socket.on('delete_message', ({ messageId, forumId }) => {
+    const mid = parseInt(messageId);
+    const fid = parseInt(forumId);
+    if (isNaN(mid) || isNaN(fid)) return;
+
+    if (!canAccessForum(fid)) return;
+
+    const message = db.prepare(
+      'SELECT id, forum_id, user_id FROM messages WHERE id = ? AND forum_id = ?'
+    ).get(mid, fid);
+
+    if (!message) return;
+
+    const canDelete = socket.user.role === 'admin' || message.user_id === socket.user.id;
+    if (!canDelete) return;
+
+    db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
+
+    io.to(`forum:${fid}`).emit('message_deleted', { messageId: mid });
+    emitForumPreview(fid);
   });
 
   socket.on('disconnect', () => {

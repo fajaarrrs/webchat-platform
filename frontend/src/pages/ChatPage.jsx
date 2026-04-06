@@ -70,16 +70,33 @@ function isImageAttachment(fileName = '', fileType = '') {
     || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes((fileName.split('.').pop() || '').toLowerCase());
 }
 
+function getFileExtension(fileName = '') {
+  const ext = (fileName.split('.').pop() || '').trim();
+  return ext.toLowerCase();
+}
+
 function getFileInfo(name) {
-  const ext = (name.split('.').pop() || '').toLowerCase();
-  if (ext === 'pdf') return { Icon: FileText, color: '#DC2626', bg: '#FEF2F2', label: 'PDF' };
+  const ext = getFileExtension(name);
+  const extLabel = ext.toUpperCase() || 'FILE';
+
+  if (ext === 'pdf') return { Icon: FileText, color: '#DC2626', bg: '#FEF2F2', label: extLabel };
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext))
-    return { Icon: ImageIcon, color: '#7c3aed', bg: '#F5F3FF', label: ext.toUpperCase() };
+    return { Icon: ImageIcon, color: '#7c3aed', bg: '#F5F3FF', label: extLabel };
   if (['doc', 'docx'].includes(ext))
-    return { Icon: FileText, color: '#2563EB', bg: '#EFF6FF', label: 'DOC' };
+    return { Icon: FileText, color: '#2563EB', bg: '#EFF6FF', label: extLabel };
   if (['xls', 'xlsx'].includes(ext))
-    return { Icon: FileText, color: '#059669', bg: '#ECFDF5', label: 'XLS' };
-  return { Icon: FileText, color: '#6B7280', bg: '#F9FAFB', label: ext.toUpperCase() || 'FILE' };
+    return { Icon: FileText, color: '#059669', bg: '#ECFDF5', label: extLabel };
+  if (['zip', 'rar', '7z'].includes(ext))
+    return { Icon: FileText, color: '#b45309', bg: '#FFFBEB', label: extLabel };
+  return { Icon: FileText, color: '#6B7280', bg: '#F9FAFB', label: extLabel };
+}
+
+function getFileLabel(fileName = '', fileType = '') {
+  const ext = getFileExtension(fileName).toUpperCase();
+  if (ext) return ext;
+  if ((fileType || '').startsWith('image/')) return fileType.split('/')[1]?.toUpperCase() || 'IMAGE';
+  if (fileType) return fileType.split('/')[1]?.toUpperCase() || 'FILE';
+  return 'FILE';
 }
 
 function cn(...classes) {
@@ -122,6 +139,7 @@ export default function ChatPage() {
 
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0 });
   const [mobileMenu, setMobileMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [forumMembers, setForumMembers] = useState([]);
@@ -302,6 +320,16 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    const handleViewportChange = () => setOpenDropdownId(null);
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, []);
+
+  useEffect(() => {
     const handle = e => {
       if (!e.target.closest('[data-headermenu]')) setShowHeaderMenu(false);
     };
@@ -386,6 +414,46 @@ export default function ChatPage() {
     setMobileMenu(null);
   };
 
+  const handleToggleDropdown = (event, msgId, isMe) => {
+    const shouldClose = openDropdownId === msgId;
+    if (shouldClose) {
+      setOpenDropdownId(null);
+      return;
+    }
+
+    const trigger = event.currentTarget;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 168;
+    const menuHeight = 168;
+    const gap = 8;
+    const viewportPadding = 8;
+
+    let left = isMe
+      ? rect.left - menuWidth - gap
+      : rect.right + gap;
+
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = rect.left - menuWidth - gap;
+    }
+    if (left < viewportPadding) {
+      left = rect.right + gap;
+    }
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = window.innerWidth - menuWidth - viewportPadding;
+    }
+
+    let top = rect.top + rect.height / 2 - menuHeight / 2;
+    if (top < viewportPadding) {
+      top = viewportPadding;
+    }
+    if (top + menuHeight > window.innerHeight - viewportPadding) {
+      top = window.innerHeight - menuHeight - viewportPadding;
+    }
+
+    setDropdownCoords({ top, left });
+    setOpenDropdownId(msgId);
+  };
+
   const handleTouchStart = (e, msg) => {
     longPressTimer.current = setTimeout(() => setMobileMenu({ msg }), 600);
   };
@@ -460,15 +528,30 @@ export default function ChatPage() {
 
     const repliedMessage = messageLookup[msg.reply_to_id];
     const replyUsername = msg.reply_username || repliedMessage?.username || 'Unknown';
-    const replyContent = msg.reply_content?.trim()
-      || repliedMessage?.content?.trim()
-      || (repliedMessage?.file_name
-        ? (isImageAttachment(repliedMessage.file_name, repliedMessage.file_type)
-          ? 'Gambar'
-          : `File: ${repliedMessage.file_name}`)
-        : 'Pesan tidak ditemukan');
+    const replyFileName = msg.reply_file_name || repliedMessage?.file_name || '';
+    const replyFileType = msg.reply_file_type || repliedMessage?.file_type || '';
+    const replyFileUrl = msg.reply_file_url || repliedMessage?.file_url || '';
+    const replyText = msg.reply_content?.trim() || repliedMessage?.content?.trim() || '';
+    const isReplyImage = !!replyFileName && isImageAttachment(replyFileName, replyFileType);
 
-    return { username: replyUsername, content: replyContent };
+    let content = replyText;
+    if (!content && replyFileName) {
+      content = isReplyImage
+        ? `Image: ${getFileLabel(replyFileName, replyFileType)}`
+        : `File: ${getFileLabel(replyFileName, replyFileType)}`;
+    }
+    if (!content) {
+      content = 'Pesan tidak ditemukan';
+    }
+
+    return {
+      username: replyUsername,
+      content,
+      fileName: replyFileName,
+      fileType: replyFileType,
+      fileUrl: replyFileUrl,
+      isImage: isReplyImage,
+    };
   };
   const getForumSenderName = (forum) => {
     if (!forum.last_sender_username) return '';
@@ -479,7 +562,8 @@ export default function ChatPage() {
     const prefix = sender ? `${sender}: ` : '';
 
     if (forum.last_file_name) {
-      return `${prefix}${isImageAttachment(forum.last_file_name, forum.last_file_type) ? 'Gambar' : `File: ${forum.last_file_name}`}`;
+      const fileLabel = getFileLabel(forum.last_file_name, forum.last_file_type);
+      return `${prefix}${isImageAttachment(forum.last_file_name, forum.last_file_type) ? `Image: ${fileLabel}` : `File: ${fileLabel}`}`;
     }
 
     return `${prefix}${forum.last_message?.trim() || '\u2014'}`;
@@ -489,7 +573,8 @@ export default function ChatPage() {
     if (!msg) return '';
     if (msg.content?.trim()) return msg.content.trim();
     if (msg.file_name) {
-      return isImageAttachment(msg.file_name, msg.file_type) ? 'Gambar' : `File: ${msg.file_name}`;
+      const fileLabel = getFileLabel(msg.file_name, msg.file_type);
+      return isImageAttachment(msg.file_name, msg.file_type) ? `Image: ${fileLabel}` : `File: ${fileLabel}`;
     }
     return 'Pesan disematkan';
   };
@@ -615,6 +700,12 @@ export default function ChatPage() {
     setShowQuickMenu(false);
   };
 
+  const handleGoDashboard = () => {
+    if (!roleBasePath) return;
+    navigate(`${roleBasePath}/dashboard`);
+    setShowQuickMenu(false);
+  };
+
   const handleOpenFaq = () => {
     setShowFaqModal(true);
     setShowQuickMenu(false);
@@ -668,8 +759,8 @@ export default function ChatPage() {
     <div
       data-msgdropdown="true"
       style={{
-        position: 'absolute',
-        zIndex: 30,
+        position: 'fixed',
+        zIndex: 500,
         minWidth: 152,
         background: '#fff',
         border: '1px solid #E5E7EB',
@@ -737,6 +828,7 @@ export default function ChatPage() {
                   {showQuickMenu && (
                     <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
                       {[
+                        { key: 'dashboard', label: 'Dashboard', icon: CornerUpLeft, onClick: handleGoDashboard },
                         { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
                         { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
                         { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
@@ -1134,15 +1226,13 @@ export default function ChatPage() {
                         className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                       >
                         <button
-                          onClick={() => setOpenDropdownId(isOpen ? null : msg.id)}
+                          onClick={(e) => handleToggleDropdown(e, msg.id, true)}
                           className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
                         >
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div className="absolute right-0 top-[30px]">
-                            {renderDropdown(msg)}
-                          </div>
+                          renderDropdown(msg, dropdownCoords)
                         )}
                       </div>
                     )}
@@ -1185,14 +1275,34 @@ export default function ChatPage() {
                         {replyPreview && (
                           <div
                             className={cn(
-                              'mb-2 truncate rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug',
+                              'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug',
                               isMe
                                 ? 'border-white/50 bg-white/15 text-white/95'
                                 : 'border-blue-600 bg-slate-100 text-slate-500'
                             )}
                           >
-                            <span className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>{replyPreview.username}: </span>
-                            {replyPreview.content}
+                            <div className="min-w-0 flex-1">
+                              <div className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>
+                                {replyPreview.username}
+                              </div>
+                              <div className={cn('truncate', isMe ? 'text-white/90' : 'text-slate-500')}>
+                                {replyPreview.content}
+                              </div>
+                            </div>
+                            {replyPreview.isImage && replyPreview.fileUrl && (
+                              <img
+                                src={`${BASE_URL}${replyPreview.fileUrl}`}
+                                alt={replyPreview.fileName || 'Reply image'}
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 8,
+                                  objectFit: 'cover',
+                                  flexShrink: 0,
+                                  background: isMe ? 'rgba(255,255,255,0.18)' : '#E5E7EB',
+                                }}
+                              />
+                            )}
                           </div>
                         )}
                         {!!msg.is_pinned && (
@@ -1228,7 +1338,9 @@ export default function ChatPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                     <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>Gambar</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
+                                      {getFileLabel(msg.file_name || '', msg.file_type || '')}
+                                    </span>
                                     {msg.file_size ? (
                                       <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
                                         · {(msg.file_size / 1024).toFixed(0)} KB
@@ -1236,7 +1348,7 @@ export default function ChatPage() {
                                     ) : null}
                                   </div>
                                   <a
-                                    href={`http://localhost:5000/api/messages/download/${msg.id}`}
+                                    href={`${BASE_URL}/api/messages/download/${msg.id}`}
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={e => e.stopPropagation()}
@@ -1275,7 +1387,7 @@ export default function ChatPage() {
                                   </div>
                                 </div>
                                 <a
-                                  href={`http://localhost:5000/api/messages/download/${msg.id}`}
+                                  href={`${BASE_URL}/api/messages/download/${msg.id}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={e => e.stopPropagation()}
@@ -1311,15 +1423,13 @@ export default function ChatPage() {
                         className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                       >
                         <button
-                          onClick={() => setOpenDropdownId(isOpen ? null : msg.id)}
+                          onClick={(e) => handleToggleDropdown(e, msg.id, false)}
                           className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
                         >
                           <ChevronDown size={13} />
                         </button>
                         {isOpen && (
-                          <div className="absolute left-0 top-[30px]">
-                            {renderDropdown(msg)}
-                          </div>
+                          renderDropdown(msg, dropdownCoords)
                         )}
                       </div>
                     )}
@@ -1597,7 +1707,7 @@ export default function ChatPage() {
               <input
                 value={joinLink}
                 onChange={e => setJoinLink(e.target.value)}
-                placeholder="Contoh: http://...webchat.../chat/join/abc123"
+                placeholder="Contoh: http://localhost:5173/chat/join/ab12cd34ef"
                 autoFocus
                 style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }}
                 onFocus={e => e.target.style.borderColor = '#2563EB'}

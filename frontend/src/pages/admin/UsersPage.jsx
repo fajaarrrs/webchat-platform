@@ -50,13 +50,6 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   useEffect(() => {
     api

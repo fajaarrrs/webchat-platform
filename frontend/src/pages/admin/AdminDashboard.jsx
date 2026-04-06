@@ -165,7 +165,7 @@ export default function AdminDashboard() {
       <div style={{ padding: pagePadding, width: '100%' }}>
         {/* Page Header */}
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
             {greeting}, {user?.username}! 👋
           </h1>
           <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
@@ -250,6 +250,7 @@ export default function AdminDashboard() {
               </h3>
             </div>
 
+
             {followUpItems.length === 0 ? (
               <div style={{ padding: '24px 8px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
                 Belum ada data yang perlu ditindaklanjuti.
@@ -261,6 +262,7 @@ export default function AdminDashboard() {
                     key={id}
                     to={to}
                     state={state}
+
                     style={{
                       borderRadius: 12,
                       padding: 16,

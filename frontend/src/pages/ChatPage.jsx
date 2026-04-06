@@ -1,5 +1,6 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +13,7 @@ import {
   Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, UserCircle2, Settings,
 } from 'lucide-react';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
 const JAKARTA_TIMEZONE = 'Asia/Jakarta';
 const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -286,6 +287,16 @@ export default function ChatPage() {
   }, [activeForumId]);
 
   useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (activeForumId && isMobile) setShowForumList(false);
+  }, [activeForumId, isMobile]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -421,7 +432,7 @@ export default function ChatPage() {
 
     try {
       const token = localStorage.getItem('wchat_token');
-      const res = await fetch('http://localhost:5000/api/messages/upload', {
+      const res = await fetch(`${SOCKET_URL}/api/messages/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -722,6 +733,7 @@ export default function ChatPage() {
           <div style={{ padding: '14px 16px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+
               {user?.role !== 'admin' && (
                 <div data-quickmenu="true" style={{ position: 'relative' }}>
                   <button
@@ -825,7 +837,10 @@ export default function ChatPage() {
               return (
                 <div
                   key={forum.id}
-                  onClick={() => setActiveForumId(forum.id)}
+                  onClick={() => {
+                    setActiveForumId(forum.id);
+                    if (isMobile) setShowForumList(false);
+                  }}
                   style={{
                     padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
                     background: isActive ? '#EFF6FF' : 'transparent',
@@ -897,12 +912,18 @@ export default function ChatPage() {
               <p style={{ fontSize: 14 }}>Pilih forum untuk mulai chat.</p>
             </div>
           </div>
-        ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F9FAFB', minWidth: 0 }}>
+        ) : (activeForum || (!showForumList && isMobile)) && (
+          <div style={{ 
+            flex: 1, 
+            display: (isMobile && showForumList) ? 'none' : 'flex', 
+            flexDirection: 'column', background: '#F9FAFB', minWidth: 0,
+            height: '100%',
+            overflow: 'hidden'
+          }}>
 
             {/* Chat Header */}
             <div style={{
-              padding: '12px 20px', background: '#fff',
+              padding: isMobile ? '10px 14px' : '12px 20px', background: '#fff',
               borderBottom: '1px solid #E5E7EB',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               position: 'relative', zIndex: 320,
@@ -923,10 +944,10 @@ export default function ChatPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 12, fontWeight: 700, color: '#fff',
                 }}>
-                  {getInitials(activeForum.title)}
+                  {getInitials(activeForum?.title)}
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', margin: 0 }}>{activeForum.title}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1F2937', margin: 0 }}>{activeForum?.title}</p>
                   <p style={{ fontSize: 12, margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
                     <span style={{ color: '#6B7280' }}>Online</span>
@@ -1069,7 +1090,7 @@ export default function ChatPage() {
             )}
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 14px' : '16px 20px', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {loadingMsgs && <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: 16 }}>Memuat pesan...</div>}
               {!loadingMsgs && messages.length === 0 && (
                 <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: 32 }}>
@@ -1174,7 +1195,7 @@ export default function ChatPage() {
                     )}
 
                     {/* Bubble */}
-                    <div style={{ maxWidth: '62%' }}>
+                    <div style={{ maxWidth: isMobile ? '82%' : '62%' }}>
                       {showSender && (
                         <div style={{ marginBottom: 4, paddingLeft: 2 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>
@@ -1194,10 +1215,12 @@ export default function ChatPage() {
                         fontSize: 14, lineHeight: 1.5,
                         border: isMe ? 'none' : '1px solid #F3F4F6',
                         wordBreak: 'break-word',
+
                         minWidth: msg.file_url && !isImageMessage ? 210 : undefined,
                         boxShadow: isActiveMatch
                           ? '0 0 0 2px #93C5FD'
                           : matchesQuery ? '0 0 0 1px #BFDBFE' : '0 1px 3px rgba(0,0,0,0.07)',
+
                       }}>
                         {replyPreview && (
                           <div style={{
@@ -1313,6 +1336,7 @@ export default function ChatPage() {
                                 </a>
                               </div>
                             )}
+                            
                             {msg.content && (
                               <div style={{ marginTop: 8, fontSize: 13 }}>{msg.content}</div>
                             )}
@@ -1427,6 +1451,7 @@ export default function ChatPage() {
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
+
           <div style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Directory</span>
@@ -1504,7 +1529,7 @@ export default function ChatPage() {
                             </div>
                           </div>
                           <a
-                            href={`http://localhost:5000/api/messages/download/${file.id}`}
+                            href={`${SOCKET_URL}/api/messages/download/${file.id}`}
                             target="_blank"
                             rel="noreferrer"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', flexShrink: 0 }}

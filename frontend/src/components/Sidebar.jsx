@@ -35,7 +35,7 @@ const roleBadge = {
   client:   { label: 'Client',   bg: '#d1fae5', color: '#065f46' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { isMobile, isTablet } = useBreakpoint();
@@ -133,6 +133,7 @@ export default function Sidebar() {
               fontWeight: isActive ? 600 : 400, fontSize: 14,
               transition: 'all 0.15s',
               textDecoration: 'none',
+              flexShrink: 0
             })}
             onMouseEnter={e => {
               if (!e.currentTarget.classList.contains('active')) {

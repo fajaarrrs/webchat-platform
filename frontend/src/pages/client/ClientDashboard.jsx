@@ -26,6 +26,7 @@ function formatSessionDate(dt) {
 export default function ClientDashboard() {
   const { user } = useAuth();
   const { isMobile, isTablet } = useBreakpoint();
+
   const [stats, setStats] = useState({ activeCount: 0, pendingCount: 0, totalCount: 0 });
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,8 +70,10 @@ export default function ClientDashboard() {
             </h1>
             <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
               Kelola sesi bantuan dan riwayat chat kamu di sini.
+
             </p>
           </div>
+
 
           <div style={{
             background: '#1D4ED8',
@@ -104,6 +107,7 @@ export default function ClientDashboard() {
               alignItems: 'center',
               gap: 8,
               textDecoration: 'none',
+
             }}>
               <MessageSquare size={16} /> Buka Chat
             </Link>

@@ -112,28 +112,46 @@ io.on('connection', (socket) => {
 
     // Persist to DB
     let safeReplyId = null;
+    let replySnapshot = null;
     if (!Number.isNaN(replyId) && replyId) {
       const repliedMessage = db.prepare(
-        'SELECT id FROM messages WHERE id = ? AND forum_id = ?'
+        `SELECT m.id, m.content, m.file_name, m.file_url, m.file_type, u.username
+         FROM messages m
+         JOIN users u ON u.id = m.user_id
+         WHERE m.id = ? AND m.forum_id = ?`
       ).get(replyId, fid);
       if (repliedMessage) {
         safeReplyId = replyId;
+        replySnapshot = repliedMessage;
       }
     }
 
     const result = db.prepare(
-      'INSERT INTO messages (forum_id, user_id, content, reply_to_id) VALUES (?, ?, ?, ?)'
-    ).run(fid, socket.user.id, content.trim(), safeReplyId);
+      `INSERT INTO messages (
+        forum_id, user_id, content, reply_to_id,
+        reply_preview_username, reply_preview_content, reply_preview_file_name, reply_preview_file_url, reply_preview_file_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      fid,
+      socket.user.id,
+      content.trim(),
+      safeReplyId,
+      replySnapshot?.username || null,
+      replySnapshot?.content || null,
+      replySnapshot?.file_name || null,
+      replySnapshot?.file_url || null,
+      replySnapshot?.file_type || null,
+    );
 
     const message = db.prepare(`
       SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
-             m.is_pinned, m.reply_to_id, m.created_at,
+             m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
              u.username, u.role,
-             ru.username AS reply_username,
-             rm.content AS reply_content,
-             rm.file_name AS reply_file_name,
-             rm.file_url AS reply_file_url,
-             rm.file_type AS reply_file_type
+              COALESCE(ru.username, m.reply_preview_username) AS reply_username,
+              COALESCE(rm.content, m.reply_preview_content) AS reply_content,
+              COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
+              COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
+              COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
       FROM messages m
       JOIN users u ON m.user_id = u.id
       LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -143,6 +161,45 @@ io.on('connection', (socket) => {
 
     // Broadcast to everyone in the room (including sender)
     io.to(`forum:${fid}`).emit('new_message', message);
+    emitForumPreview(fid);
+  });
+
+  // Edit message (admin or message owner)
+  socket.on('edit_message', ({ messageId, forumId, content }) => {
+    const mid = parseInt(messageId, 10);
+    const fid = parseInt(forumId, 10);
+    const nextContent = String(content || '').trim();
+    if (Number.isNaN(mid) || Number.isNaN(fid) || !nextContent) return;
+
+    if (!canAccessForum(fid)) return;
+
+    const existing = db.prepare(
+      'SELECT id, forum_id, user_id FROM messages WHERE id = ? AND forum_id = ?'
+    ).get(mid, fid);
+    if (!existing) return;
+
+    const canEdit = socket.user.role === 'admin' || existing.user_id === socket.user.id;
+    if (!canEdit) return;
+
+    db.prepare('UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextContent, mid);
+
+    const updatedMessage = db.prepare(`
+      SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
+             m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+             u.username, u.role,
+             COALESCE(ru.username, m.reply_preview_username) AS reply_username,
+             COALESCE(rm.content, m.reply_preview_content) AS reply_content,
+             COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
+             COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
+             COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
+      FROM messages m
+      JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages rm ON m.reply_to_id = rm.id
+      LEFT JOIN users ru ON rm.user_id = ru.id
+      WHERE m.id = ?
+    `).get(mid);
+
+    io.to(`forum:${fid}`).emit('message_edited', updatedMessage);
     emitForumPreview(fid);
   });
 

@@ -8,7 +8,7 @@ import useBreakpoint from '../hooks/useBreakpoint';
 import {
   Search, Send, Paperclip, MoreVertical,
   FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
-  Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown,
+  Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown, Pencil,
   Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings,
 } from 'lucide-react';
 
@@ -103,6 +103,33 @@ function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function escapeRegex(value = '') {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getActiveMentionQuery(text = '', caretPosition = 0) {
+  const prefix = text.slice(0, caretPosition);
+  const match = prefix.match(/(^|\s)@([a-zA-Z0-9._-]*)$/);
+  if (!match) return null;
+  return {
+    query: match[2] || '',
+    replaceStart: prefix.length - match[2].length - 1,
+    replaceEnd: caretPosition,
+  };
+}
+
+function renderMentions(text = '') {
+  const mentionPattern = /(@[a-zA-Z0-9._-]+)/g;
+  const parts = String(text).split(mentionPattern);
+
+  return parts.map((part, idx) => {
+    if (/^@[a-zA-Z0-9._-]+$/.test(part)) {
+      return <span key={`mention-${idx}`} style={{ fontWeight: 600 }}>{part}</span>;
+    }
+    return <span key={`text-${idx}`}>{part}</span>;
+  });
+}
+
 export default function ChatPage() {
   const { user, addToast, logout } = useAuth();
   const { isMobile } = useBreakpoint();
@@ -143,9 +170,12 @@ export default function ChatPage() {
   const [mobileMenu, setMobileMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [forumMembers, setForumMembers] = useState([]);
+  const [caretPosition, setCaretPosition] = useState(0);
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
   const messageSearchInputRef = useRef(null);
   const socketRef = useRef(null);
   const messageRefs = useRef({});
@@ -223,6 +253,10 @@ export default function ChatPage() {
     socket.on('message_pinned', ({ messageId, is_pinned }) =>
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned } : m))
     );
+    socket.on('message_edited', (updatedMessage) => {
+      setMessages((prev) => prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)));
+      syncForumPreview(updatedMessage);
+    });
     return () => socket.disconnect();
   }, []);
 
@@ -305,6 +339,8 @@ export default function ChatPage() {
     api.get(`/forums/${activeForumId}/members`)
       .then(data => setForumMembers(data))
       .catch(() => setForumMembers([]));
+
+    setTimeout(() => messageInputRef.current?.focus(), 0);
   }, [activeForumId]);
 
   useEffect(() => {
@@ -365,13 +401,35 @@ export default function ChatPage() {
     setReplyTo(null);
   };
 
+  const handleSelectMention = (username, mentionMeta) => {
+    if (!mentionMeta) return;
+
+    const before = inputText.slice(0, mentionMeta.replaceStart);
+    const after = inputText.slice(mentionMeta.replaceEnd);
+    const inserted = `@${username} `;
+    const nextText = `${before}${inserted}${after}`;
+    const nextCaret = before.length + inserted.length;
+
+    setInputText(nextText);
+    setCaretPosition(nextCaret);
+    setMentionActiveIndex(0);
+
+    setTimeout(() => {
+      if (!messageInputRef.current) return;
+      messageInputRef.current.focus();
+      messageInputRef.current.setSelectionRange(nextCaret, nextCaret);
+    }, 0);
+  };
+
   const handleReply = msg => {
     setReplyTo({ id: msg.id, content: msg.content, username: msg.username });
     setOpenDropdownId(null);
     setMobileMenu(null);
+    setTimeout(() => messageInputRef.current?.focus(), 0);
   };
 
   const handlePin = msg => {
+    messageInputRef.current?.blur();
     if (msg?.is_pinned) {
       const ok = window.confirm('Apakah Anda yakin ingin membatalkan pin pada pesan ini?');
       if (!ok) {
@@ -387,6 +445,7 @@ export default function ChatPage() {
   };
 
   const handleDelete = msg => {
+    messageInputRef.current?.blur();
     if (!window.confirm('Hapus pesan ini?')) return;
     socketRef.current?.emit('delete_message', { messageId: msg.id, forumId: activeForumId });
     setOpenDropdownId(null);
@@ -394,6 +453,7 @@ export default function ChatPage() {
   };
 
   const handleCopyMessage = async (msg) => {
+    messageInputRef.current?.blur();
     const payload = msg?.content?.trim()
       || msg?.file_name
       || (msg?.file_url ? `${BASE_URL}${msg.file_url}` : '');
@@ -412,6 +472,35 @@ export default function ChatPage() {
 
     setOpenDropdownId(null);
     setMobileMenu(null);
+  };
+
+  const handleMessageInputKeyDown = (e, mentionOptions, mentionMeta) => {
+    if (mentionOptions.length > 0 && mentionMeta) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionActiveIndex((prev) => (prev + 1) % mentionOptions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionActiveIndex((prev) => (prev - 1 + mentionOptions.length) % mentionOptions.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSelectMention(mentionOptions[mentionActiveIndex]?.username || mentionOptions[0].username, mentionMeta);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionActiveIndex(0);
+        return;
+      }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      handleSend(e);
+    }
   };
 
   const handleToggleDropdown = (event, msgId, isMe) => {
@@ -522,7 +611,36 @@ export default function ChatPage() {
   const getRoleColor = role =>
     role === 'admin' ? '#6d28d9' : role === 'karyawan' ? '#1d4ed8' : '#059669';
   const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
+  const canEdit = msg => (user?.role === 'admin' || msg.user_id === user?.id) && !msg.file_url;
   const canPin = () => user?.role === 'admin';
+
+  const handleEditMessage = (msg) => {
+    messageInputRef.current?.blur();
+    if (!canEdit(msg)) return;
+
+    const nextText = window.prompt('Edit pesan:', msg.content || '');
+    if (nextText === null) return;
+
+    const trimmed = nextText.trim();
+    if (!trimmed) {
+      addToast('Pesan tidak boleh kosong.', 'error');
+      return;
+    }
+    if (trimmed === (msg.content || '').trim()) {
+      setOpenDropdownId(null);
+      setMobileMenu(null);
+      return;
+    }
+
+    socketRef.current?.emit('edit_message', {
+      messageId: msg.id,
+      forumId: activeForumId,
+      content: trimmed,
+    });
+
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+  };
   const getReplyPreviewData = (msg) => {
     if (!msg.reply_to_id) return null;
 
@@ -588,6 +706,19 @@ export default function ChatPage() {
     setTimeout(() => {
       setJumpedMessageId((prev) => (prev === msg.id ? null : prev));
     }, 1400);
+  };
+
+  const handleGoToReplyMessage = (msg) => {
+    const replyToId = msg?.reply_to_id;
+    if (!replyToId) return;
+
+    const targetMessage = messageLookup[replyToId];
+    if (!targetMessage) {
+      addToast('Pesan ini sudah dihapus.', 'error');
+      return;
+    }
+
+    handleGoToMessage(targetMessage);
   };
 
   const toggleFavoriteForum = (forumId) => {
@@ -733,6 +864,28 @@ export default function ChatPage() {
   const showChatPanel = !isMobile || !!activeForumId;
 
   const normalizedMessageSearch = messageSearch.trim().toLowerCase();
+  const mentionMeta = getActiveMentionQuery(inputText, caretPosition);
+  const mentionSuggestions = mentionMeta
+    ? forumMembers
+        .filter((member) => member?.username)
+        .filter((member) => {
+          if (!mentionMeta.query) return true;
+          return member.username.toLowerCase().includes(mentionMeta.query.toLowerCase());
+        })
+        .slice(0, 6)
+    : [];
+
+  const isTaggedForCurrentUser = (msg) => {
+    if (!user?.username || !msg?.content || msg.user_id === user.id) return false;
+    const escapedUsername = escapeRegex(user.username);
+    const mentionRegex = new RegExp(`(^|\\s)@${escapedUsername}(?=\\s|$|[.,!?;:])`, 'i');
+    return mentionRegex.test(msg.content);
+  };
+
+  useEffect(() => {
+    setMentionActiveIndex(0);
+  }, [mentionMeta?.query, activeForumId]);
+
   const searchMatches = normalizedMessageSearch
     ? messages.filter((msg) => (`${msg.content || ''} ${msg.file_name || ''}`).toLowerCase().includes(normalizedMessageSearch))
     : [];
@@ -741,6 +894,16 @@ export default function ChatPage() {
     lookup[message.id] = message;
     return lookup;
   }, {});
+
+  const isReplyToCurrentUser = (msg) => {
+    if (!user || msg?.user_id === user.id || !msg?.reply_to_id) return false;
+
+    const repliedMessage = messageLookup[msg.reply_to_id];
+    if (repliedMessage?.user_id === user.id) return true;
+
+    // Fallback when original message is gone from list; snapshot username still exists.
+    return !!(msg.reply_username && user.username && msg.reply_username === user.username);
+  };
 
   useEffect(() => {
     setSearchMatchIndex(0);
@@ -772,6 +935,7 @@ export default function ChatPage() {
     >
       {[
         { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
+        ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
         { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
         ...(canPin() ? [{
           icon: msg.is_pinned ? PinOff : Pin,
@@ -1171,6 +1335,7 @@ export default function ChatPage() {
 
               {messages.map((msg, i) => {
                 const isMe = msg.user_id === user?.id;
+                const isHighlightedForMe = isTaggedForCurrentUser(msg) || isReplyToCurrentUser(msg);
                 const isImageMessage = isImageAttachment(msg.file_name || '', msg.file_type || '');
                 const replyPreview = getReplyPreviewData(msg);
                 const prevMsg = messages[i - 1];
@@ -1267,6 +1432,7 @@ export default function ChatPage() {
                           'break-words text-sm leading-relaxed shadow-sm',
                           'rounded-2xl',
                           isMe ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800',
+                          !isMe && isHighlightedForMe ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : '',
                           msg.file_url ? (isImageMessage ? 'p-2' : 'min-w-[210px] px-3 py-2.5') : 'px-3.5 py-2.5',
                           isActiveMatch ? 'ring-2 ring-blue-300' : '',
                           !isActiveMatch && matchesQuery ? 'ring-1 ring-blue-200' : ''
@@ -1274,8 +1440,18 @@ export default function ChatPage() {
                       >
                         {replyPreview && (
                           <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleGoToReplyMessage(msg)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleGoToReplyMessage(msg);
+                              }
+                            }}
                             className={cn(
-                              'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug',
+                              'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug transition-all duration-200',
+                              'cursor-pointer hover:opacity-90',
                               isMe
                                 ? 'border-white/50 bg-white/15 text-white/95'
                                 : 'border-blue-600 bg-slate-100 text-slate-500'
@@ -1403,13 +1579,14 @@ export default function ChatPage() {
                                 </a>
                               </div>
                             )}
-                            {msg.content && <div className="mt-2 text-[13px]">{msg.content}</div>}
+                            {msg.content && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
                           </div>
                         ) : (
-                          msg.content
+                          renderMentions(msg.content)
                         )}
 
                         <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>
+                          {!!msg.edited_at && <span>diedit</span>}
                           {formatTime(msg.created_at)}
                           {isMe && <CheckCheck size={12} />}
                         </div>
@@ -1458,7 +1635,7 @@ export default function ChatPage() {
               <form
                 onSubmit={handleSend}
                 className={cn(
-                  'flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
+                  'relative flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
                   isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-2'
                 )}
               >
@@ -1492,9 +1669,13 @@ export default function ChatPage() {
 
                 <div className="min-w-0 flex-1">
                   <input
+                    ref={messageInputRef}
                     value={inputText}
                     onChange={e => setInputText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(e); }}
+                    onClick={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
+                    onKeyUp={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
+                    onSelect={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
+                    onKeyDown={(e) => handleMessageInputKeyDown(e, mentionSuggestions, mentionMeta)}
                     placeholder="Ketik pesan..."
                     className={cn(
                       'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
@@ -1502,6 +1683,53 @@ export default function ChatPage() {
                     )}
                   />
                 </div>
+
+                {mentionMeta && mentionSuggestions.length > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: isMobile ? 54 : 60,
+                      right: isMobile ? 46 : 52,
+                      bottom: isMobile ? 44 : 48,
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                      zIndex: 70,
+                      background: '#fff',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 12,
+                      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.18)',
+                      padding: 6,
+                    }}
+                  >
+                    {mentionSuggestions.map((member, idx) => {
+                      const isActive = idx === mentionActiveIndex;
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => handleSelectMention(member.username, mentionMeta)}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            padding: '8px 10px',
+                            border: 'none',
+                            borderRadius: 8,
+                            background: isActive ? '#EFF6FF' : 'transparent',
+                            color: '#1F2937',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>@{member.username}</span>
+                          <span style={{ fontSize: 11, color: '#64748B' }}>{getRoleLabel(member.role)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <button
                   type="submit"
@@ -1631,6 +1859,7 @@ export default function ChatPage() {
             <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 2, margin: '0 auto 16px' }} />
             {[
               { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(mobileMenu.msg), color: '#374151' },
+              ...(canEdit(mobileMenu.msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(mobileMenu.msg), color: '#374151' }] : []),
               { icon: Reply, label: 'Reply', onClick: () => handleReply(mobileMenu.msg), color: '#374151' },
               ...(canPin() ? [{ icon: mobileMenu.msg.is_pinned ? PinOff : Pin, label: mobileMenu.msg.is_pinned ? 'Unpin' : 'Pin', onClick: () => handlePin(mobileMenu.msg), color: '#374151' }] : []),
               ...(canDelete(mobileMenu.msg) ? [{ icon: Trash2, label: 'Delete', onClick: () => handleDelete(mobileMenu.msg), color: '#DC2626' }] : []),

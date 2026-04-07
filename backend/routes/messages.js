@@ -27,13 +27,13 @@ const upload = multer({
 function mapMessageWithSender(messageId) {
   return db.prepare(`
     SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
-           m.is_pinned, m.reply_to_id, m.created_at,
+           m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
            u.username, u.role,
-           ru.username AS reply_username,
-           rm.content AS reply_content,
-           rm.file_name AS reply_file_name,
-           rm.file_url AS reply_file_url,
-           rm.file_type AS reply_file_type
+           COALESCE(ru.username, m.reply_preview_username) AS reply_username,
+           COALESCE(rm.content, m.reply_preview_content) AS reply_content,
+           COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
+           COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
+           COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
     FROM messages m
     JOIN users u ON m.user_id = u.id
     LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -91,13 +91,13 @@ router.get('/:forumId', authenticate, (req, res) => {
 
   const messages = db.prepare(`
     SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
-           m.is_pinned, m.reply_to_id, m.created_at,
+           m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
            u.username, u.role,
-           ru.username AS reply_username,
-        rm.content AS reply_content,
-        rm.file_name AS reply_file_name,
-        rm.file_url AS reply_file_url,
-        rm.file_type AS reply_file_type
+           COALESCE(ru.username, m.reply_preview_username) AS reply_username,
+           COALESCE(rm.content, m.reply_preview_content) AS reply_content,
+           COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
+           COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
+           COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
     FROM messages m
     JOIN users u ON m.user_id = u.id
     LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -126,10 +126,28 @@ router.post('/upload', authenticate, upload.single('file'), (req, res) => {
       return res.status(403).json({ error: 'Tidak memiliki akses ke forum ini.' });
     }
 
+    let safeReplyToId = null;
+    let replySnapshot = null;
+    if (!Number.isNaN(replyToId) && replyToId) {
+      const repliedMessage = db.prepare(
+        `SELECT m.id, m.content, m.file_name, m.file_url, m.file_type, u.username
+         FROM messages m
+         JOIN users u ON u.id = m.user_id
+         WHERE m.id = ? AND m.forum_id = ?`
+      ).get(replyToId, forumId);
+      if (repliedMessage) {
+        safeReplyToId = replyToId;
+        replySnapshot = repliedMessage;
+      }
+    }
+
     const fileUrl = `/uploads/${req.file.filename}`;
     const result = db.prepare(`
-      INSERT INTO messages (forum_id, user_id, content, file_url, file_name, file_type, reply_to_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO messages (
+        forum_id, user_id, content, file_url, file_name, file_type, reply_to_id,
+        reply_preview_username, reply_preview_content, reply_preview_file_name, reply_preview_file_url, reply_preview_file_type
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       forumId,
       req.user.id,
@@ -137,7 +155,12 @@ router.post('/upload', authenticate, upload.single('file'), (req, res) => {
       fileUrl,
       req.file.originalname,
       req.file.mimetype || null,
-      Number.isNaN(replyToId) ? null : replyToId
+      safeReplyToId,
+      replySnapshot?.username || null,
+      replySnapshot?.content || null,
+      replySnapshot?.file_name || null,
+      replySnapshot?.file_url || null,
+      replySnapshot?.file_type || null
     );
 
     const message = mapMessageWithSender(result.lastInsertRowid);

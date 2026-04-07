@@ -21,6 +21,8 @@ import {
   X,
 } from 'lucide-react';
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
 const roleMeta = {
   admin: {
     label: 'Admin',
@@ -74,12 +76,14 @@ export default function SettingsPage() {
   const [showPass, setShowPass] = useState({ new: false, confirm: false });
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [profileEmailTouched, setProfileEmailTouched] = useState(false);
 
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [editEmailTouched, setEditEmailTouched] = useState(false);
 
   const avatarInputRef = useRef(null);
 
@@ -88,6 +92,10 @@ export default function SettingsPage() {
   const RoleIcon = roleInfo.Icon;
   const initials = user?.username?.slice(0, 2).toUpperCase() || '??';
   const roleBasePath = user?.role ? `/${user.role}` : '';
+  const isProfileEmailValid = emailRegex.test(profileForm.email.trim());
+  const showProfileEmailError = profileEmailTouched && profileForm.email.trim() && !isProfileEmailValid;
+  const isEditEmailValid = !editingUser?.email || emailRegex.test(editingUser.email.trim());
+  const showEditEmailError = Boolean(editingUser) && editEmailTouched && editingUser?.email?.trim() && !isEditEmailValid;
 
   const tabs = [
     { key: 'profile', label: 'Profil', icon: User },
@@ -97,6 +105,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setProfileForm({ username: user?.username || '', email: user?.email || '' });
+    setProfileEmailTouched(false);
   }, [user?.username, user?.email]);
 
   useEffect(() => {
@@ -132,6 +141,11 @@ export default function SettingsPage() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!profileForm.username.trim()) return;
+    setProfileEmailTouched(true);
+    if (!isProfileEmailValid) {
+      addToast('Format email belum valid. Gunakan format seperti nama@domain.com.', 'error');
+      return;
+    }
 
     setSaving(true);
     await updateProfile({
@@ -171,6 +185,11 @@ export default function SettingsPage() {
   const handleEditUser = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
+    setEditEmailTouched(true);
+    if (!isEditEmailValid) {
+      addToast('Format email tidak valid. Mohon masukkan alamat email yang benar.', 'error');
+      return;
+    }
 
     setEditSaving(true);
     try {
@@ -297,9 +316,13 @@ export default function SettingsPage() {
                         type="email"
                         value={profileForm.email}
                         onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                        onBlur={() => setProfileEmailTouched(true)}
                         placeholder="Masukkan email"
-                        className={inputClass}
+                        className={`${inputClass} ${showProfileEmailError ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : ''}`}
                       />
+                      {showProfileEmailError && (
+                        <p className="text-xs font-medium text-red-500">Format email tidak valid. Mohon masukkan alamat email yang benar.</p>
+                      )}
                     </div>
                   </div>
 
@@ -394,14 +417,15 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      setEditEmailTouched(false);
                                       setEditingUser({
                                         id: item.id,
                                         username: item.username,
                                         email: item.email,
                                         role: item.role,
-                                      })
-                                    }
+                                      });
+                                    }}
                                     className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
                                   >
                                     <Pencil size={12} /> Edit
@@ -454,7 +478,10 @@ export default function SettingsPage() {
         <div
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/45 p-6"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setEditingUser(null);
+            if (e.target === e.currentTarget) {
+              setEditEmailTouched(false);
+              setEditingUser(null);
+            }
           }}
         >
           <div className="w-full max-w-lg rounded-3xl border border-slate-100 bg-white p-8 shadow-2xl shadow-slate-900/20">
@@ -462,7 +489,10 @@ export default function SettingsPage() {
               <h3 className="text-xl font-bold text-slate-900">Edit User</h3>
               <button
                 type="button"
-                onClick={() => setEditingUser(null)}
+                onClick={() => {
+                  setEditEmailTouched(false);
+                  setEditingUser(null);
+                }}
                 className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X size={18} />
@@ -486,8 +516,12 @@ export default function SettingsPage() {
                   type="email"
                   value={editingUser.email}
                   onChange={(e) => setEditingUser((prev) => ({ ...prev, email: e.target.value }))}
-                  className={inputClass}
+                  onBlur={() => setEditEmailTouched(true)}
+                  className={`${inputClass} ${showEditEmailError ? 'border-red-500 bg-red-50 focus:ring-red-500/10' : ''}`}
                 />
+                {showEditEmailError && (
+                  <p className="mt-2 text-xs font-medium text-red-500">Email user belum valid. Gunakan format seperti nama@domain.com.</p>
+                )}
               </div>
 
               <div>
@@ -506,7 +540,10 @@ export default function SettingsPage() {
               <div className="flex justify-end gap-4 pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditingUser(null)}
+                  onClick={() => {
+                    setEditEmailTouched(false);
+                    setEditingUser(null);
+                  }}
                   className={secondaryButtonClass}
                 >
                   Batal

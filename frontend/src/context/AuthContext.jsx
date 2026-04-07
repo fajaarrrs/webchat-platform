@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 
 const AuthContext = createContext(null);
@@ -7,6 +7,14 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
+  const toastTimeoutRef = useRef(null);
+
+  const clearToastTimer = () => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+  };
 
   // Validate stored token on mount
   useEffect(() => {
@@ -18,13 +26,28 @@ export function AuthProvider({ children }) {
       .finally(() => setAuthLoading(false));
   }, []);
 
+  useEffect(() => {
+    return () => clearToastTimer();
+  }, []);
+
   const addToast = (message, type = 'success') => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+    clearToastTimer();
+    // Keep only one active toast: latest action replaces previous popup.
+    setToasts([{ id, message, type }]);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToasts((prev) => (prev[0]?.id === id ? [] : prev));
+      toastTimeoutRef.current = null;
+    }, 3000);
   };
 
-  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  const removeToast = (id) => {
+    setToasts((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (!next.length) clearToastTimer();
+      return next;
+    });
+  };
 
   // Returns { success, role } or throws
   const login = async (email, password) => {

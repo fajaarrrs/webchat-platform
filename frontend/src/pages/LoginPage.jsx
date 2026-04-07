@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -11,9 +13,16 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  const isEmailValid = emailRegex.test(form.email.trim());
+  const showEmailError = emailTouched && form.email.trim() && !isEmailValid;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setEmailTouched(true);
+    if (!isEmailValid) return;
+
     setLoading(true);
     const result = await login(form.email, form.password);
     if (result.success) {
@@ -151,6 +160,10 @@ export default function LoginPage() {
         }
 
         .field-wrap {
+          width: 100%;
+        }
+
+        .field-control {
           position: relative;
         }
 
@@ -182,6 +195,17 @@ export default function LoginPage() {
         .field-input:focus {
           border-color: #1783ee;
           background: #fff;
+        }
+
+        .field-input.error {
+          border-color: #ef4444;
+          background: #fff5f5;
+        }
+
+        .error-text {
+          color: #ef4444;
+          font-size: 13px;
+          margin: 7px 0 0 8px;
         }
 
         .pass-toggle {
@@ -316,34 +340,40 @@ export default function LoginPage() {
 
             <form className="auth-form" onSubmit={handleSubmit}>
               <div className="field-wrap">
-                <Mail size={22} className="field-icon" />
-                <input
-                  className="field-input"
-                  type="email"
-                  required
-                  placeholder="Email Address"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
+                <div className="field-control">
+                  <Mail size={22} className="field-icon" />
+                  <input
+                    className={`field-input ${showEmailError ? 'error' : ''}`}
+                    type="email"
+                    required
+                    placeholder="Email Address"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onBlur={() => setEmailTouched(true)}
+                  />
+                </div>
+                {showEmailError && <div className="error-text">Format email tidak valid. Mohon masukkan alamat email yang benar.</div>}
               </div>
 
               <div className="field-wrap">
-                <Lock size={22} className="field-icon" />
-                <input
-                  className="field-input"
-                  type={showPass ? 'text' : 'password'}
-                  required
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="pass-toggle"
-                  onClick={() => setShowPass(!showPass)}
-                >
-                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <div className="field-control">
+                  <Lock size={22} className="field-icon" />
+                  <input
+                    className="field-input"
+                    type={showPass ? 'text' : 'password'}
+                    required
+                    placeholder="Password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="pass-toggle"
+                    onClick={() => setShowPass(!showPass)}
+                  >
+                    {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="submit-btn" disabled={loading}>
@@ -356,7 +386,7 @@ export default function LoginPage() {
             </Link>
 
             <div className="switch-auth">
-              Belum punya akun? <Link to="/register">Register</Link>
+              Belum punya akun? <Link to={searchParams.get('redirect') ? `/register?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : '/register'}>Register</Link>
             </div>
           </div>
         </div>

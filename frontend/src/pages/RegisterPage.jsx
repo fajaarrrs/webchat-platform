@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 
 export default function RegisterPage() {
   const { register, addToast } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState({
     username: '',
@@ -16,9 +19,19 @@ export default function RegisterPage() {
 
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  const isEmailValid = emailRegex.test(form.email.trim());
+  const showEmailError = emailTouched && form.email.trim() && !isEmailValid;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setEmailTouched(true);
+
+    if (!isEmailValid) {
+      addToast('Format email belum valid. Gunakan format seperti nama@example.com.', 'error');
+      return;
+    }
 
     if (form.password !== form.confirm) {
       addToast('Password tidak cocok.', 'error');
@@ -32,7 +45,10 @@ export default function RegisterPage() {
 
     setLoading(true);
     const result = await register(form.username, form.email, form.password);
-    if (result.success) navigate('/login');
+    if (result.success) {
+      const redirect = searchParams.get('redirect');
+      navigate(redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login');
+    }
     setLoading(false);
   };
 
@@ -346,8 +362,13 @@ export default function RegisterPage() {
                   placeholder="Email Address"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onBlur={() => setEmailTouched(true)}
                 />
               </div>
+
+              {showEmailError && (
+                <div className="error-text">Format email tidak valid. Mohon masukkan alamat email yang benar.</div>
+              )}
 
               <div className="field-wrap">
                 <Lock size={22} className="field-icon" />
@@ -400,7 +421,7 @@ export default function RegisterPage() {
             </form>
 
             <div className="switch-auth">
-              Sudah punya akun? <Link to="/login">Login</Link>
+              Sudah punya akun? <Link to={searchParams.get('redirect') ? `/login?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : '/login'}>Login</Link>
             </div>
           </div>
         </div>

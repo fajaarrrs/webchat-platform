@@ -1184,13 +1184,13 @@ export default function ChatPage() {
                   onClick={handleHeaderSearchClick}
                   title="Cari pesan"
                   className={cn(
-                    'flex h-8.5 w-8.5 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
+                    'flex h-10 w-10 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
                     showMessageSearch
                       ? 'border-blue-200 bg-blue-50 text-blue-600'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                   )}
                 >
-                  <Search size={15} />
+                  <Search size={19} />
                 </button>
 
                 <div data-headermenu="true" className="relative">
@@ -1198,13 +1198,13 @@ export default function ChatPage() {
                     onClick={() => setShowHeaderMenu(v => !v)}
                     title="Menu grup"
                     className={cn(
-                      'flex h-8.5 w-8.5 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
+                      'flex h-10 w-10 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
                       showHeaderMenu
                         ? 'border-blue-200 bg-blue-50 text-blue-600'
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                     )}
                   >
-                    <MoreVertical size={15} />
+                    <MoreVertical size={19} />
                   </button>
 
                   {showHeaderMenu && (

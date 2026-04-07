@@ -8,6 +8,11 @@ const db = new Database(path.join(__dirname, 'webchat.db'));
 db.pragma('journal_mode = WAL');
 
 function initDatabase() {
+  const PRIMARY_ADMIN_USERNAME = 'admin';
+  const PRIMARY_ADMIN_EMAIL = 'admin@gmail.com';
+  const PRIMARY_ADMIN_PASSWORD = 'admin123';
+  const LEGACY_ADMIN_EMAIL = 'admin@webcare.com';
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,6 +53,12 @@ function initDatabase() {
       file_type TEXT,
       is_pinned INTEGER NOT NULL DEFAULT 0,
       reply_to_id INTEGER,
+      reply_preview_username TEXT,
+      reply_preview_content TEXT,
+      reply_preview_file_name TEXT,
+      reply_preview_file_url TEXT,
+      reply_preview_file_type TEXT,
+      edited_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (forum_id) REFERENCES forums(id),
       FOREIGN KEY (user_id) REFERENCES users(id),
@@ -74,15 +85,52 @@ function initDatabase() {
   if (!hasColumn('reply_to_id')) {
     db.exec('ALTER TABLE messages ADD COLUMN reply_to_id INTEGER');
   }
+  if (!hasColumn('reply_preview_username')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_preview_username TEXT');
+  }
+  if (!hasColumn('reply_preview_content')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_preview_content TEXT');
+  }
+  if (!hasColumn('reply_preview_file_name')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_preview_file_name TEXT');
+  }
+  if (!hasColumn('reply_preview_file_url')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_preview_file_url TEXT');
+  }
+  if (!hasColumn('reply_preview_file_type')) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply_preview_file_type TEXT');
+  }
+  if (!hasColumn('edited_at')) {
+    db.exec('ALTER TABLE messages ADD COLUMN edited_at DATETIME');
+  }
+
+  // Ensure legacy seeded admin account is migrated to the latest default credentials.
+  const legacyAdmin = db
+    .prepare("SELECT id, email FROM users WHERE role = 'admin' AND username = ?")
+    .get(PRIMARY_ADMIN_USERNAME);
+
+  if (legacyAdmin && legacyAdmin.email === LEGACY_ADMIN_EMAIL) {
+    const sameEmailOwner = db
+      .prepare('SELECT id FROM users WHERE email = ?')
+      .get(PRIMARY_ADMIN_EMAIL);
+
+    if (!sameEmailOwner || sameEmailOwner.id === legacyAdmin.id) {
+      db.prepare('UPDATE users SET email = ?, password_hash = ? WHERE id = ?').run(
+        PRIMARY_ADMIN_EMAIL,
+        bcrypt.hashSync(PRIMARY_ADMIN_PASSWORD, 10),
+        legacyAdmin.id,
+      );
+    }
+  }
 
   // Seed admin user if none exists
   const adminExists = db.prepare("SELECT id FROM users WHERE role = 'admin'").get();
   if (!adminExists) {
-    const hash = bcrypt.hashSync('adminchat', 10);
+    const hash = bcrypt.hashSync(PRIMARY_ADMIN_PASSWORD, 10);
     db.prepare(
       "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'admin')"
-    ).run('admin', 'admin@webcare.com', hash);
-    console.log('✅ Admin seeded — email: admin@webcare.com | password: adminchat');
+    ).run(PRIMARY_ADMIN_USERNAME, PRIMARY_ADMIN_EMAIL, hash);
+    console.log('✅ Admin seeded — email: admin@gmail.com | password: admin123');
   }
 }
 

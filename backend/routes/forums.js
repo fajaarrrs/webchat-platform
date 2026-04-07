@@ -1,9 +1,9 @@
 const express = require('express');
-const crypto = require('crypto');
 const { db } = require('../database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+const MAX_FORUM_TEXT_LENGTH = 25;
 
 function getSessionStatus(lastActivity, hasMessages) {
   if (!hasMessages) return 'pending';
@@ -40,6 +40,20 @@ function toSlug(value = '') {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function buildUniqueForumTokenFromTitle(title) {
+  const base = toSlug(title) || 'forum';
+  let candidate = base;
+  let suffix = 2;
+
+  // Keep slug human-readable while ensuring token remains unique.
+  while (db.prepare('SELECT id FROM forums WHERE token = ?').get(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
 }
 
 // GET /api/forums — admin gets all, others get only their forums
@@ -81,10 +95,17 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Judul forum dan nama project wajib diisi.' });
   }
 
-  const token = crypto.randomBytes(5).toString('hex');
+  const cleanTitle = title.trim();
+  const cleanProject = project.trim();
+
+  if (cleanTitle.length > MAX_FORUM_TEXT_LENGTH || cleanProject.length > MAX_FORUM_TEXT_LENGTH) {
+    return res.status(400).json({ error: `Judul link dan nama project maksimal ${MAX_FORUM_TEXT_LENGTH} karakter.` });
+  }
+
+  const token = buildUniqueForumTokenFromTitle(cleanTitle);
   const result = db.prepare(
     'INSERT INTO forums (title, project, description, token, created_by) VALUES (?, ?, ?, ?, ?)'
-  ).run(title.trim(), project.trim(), (description || '').trim(), token, req.user.id);
+  ).run(cleanTitle, cleanProject, (description || '').trim(), token, req.user.id);
 
   // Auto-add admin as member
   db.prepare(
@@ -342,15 +363,39 @@ router.delete('/:id/leave', authenticate, (req, res) => {
 
 // DELETE /api/forums/:id — delete forum (admin only)
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
-  const forumId = parseInt(req.params.id);
+  const forumId = parseInt(req.params.id, 10);
+  if (Number.isNaN(forumId)) {
+    return res.status(400).json({ error: 'Forum ID tidak valid.' });
+  }
+
   const forum = db.prepare('SELECT id FROM forums WHERE id = ?').get(forumId);
   if (!forum) return res.status(404).json({ error: 'Forum tidak ditemukan.' });
 
-  db.prepare('DELETE FROM messages WHERE forum_id = ?').run(forumId);
-  db.prepare('DELETE FROM forum_members WHERE forum_id = ?').run(forumId);
-  db.prepare('DELETE FROM forums WHERE id = ?').run(forumId);
+  try {
+    const removeForumTx = db.transaction((id) => {
+      // Putuskan referensi reply lintas-forum sebelum menghapus pesan forum ini.
+      db.prepare(`
+        UPDATE messages
+        SET reply_to_id = NULL
+        WHERE reply_to_id IN (
+          SELECT m.id FROM messages m WHERE m.forum_id = ?
+        )
+      `).run(id);
 
-  res.json({ message: 'Forum berhasil dihapus.' });
+      // Bersihkan pointer baca terakhir user untuk forum ini.
+      db.prepare('DELETE FROM forum_reads WHERE forum_id = ?').run(id);
+
+      // Saat forum dihapus, semua anggota forum ini otomatis dikeluarkan.
+      db.prepare('DELETE FROM forum_members WHERE forum_id = ?').run(id);
+      db.prepare('DELETE FROM messages WHERE forum_id = ?').run(id);
+      db.prepare('DELETE FROM forums WHERE id = ?').run(id);
+    });
+
+    removeForumTx(forumId);
+    return res.json({ message: 'Forum berhasil dihapus. Semua anggota otomatis dikeluarkan.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Gagal menghapus forum. Silakan coba lagi.' });
+  }
 });
 
 module.exports = router;

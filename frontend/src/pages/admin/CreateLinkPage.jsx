@@ -6,6 +6,9 @@ import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen } from 'luc
 import useBreakpoint from '../../hooks/useBreakpoint';
 import './CreateLinkPage.css';
 
+const MAX_TITLE_LENGTH = 25;
+const MAX_PROJECT_LENGTH = 25;
+
 export default function CreateLinkPage() {
   const { addToast } = useAuth();
   const { isMobile, isTablet } = useBreakpoint();
@@ -81,73 +84,6 @@ export default function CreateLinkPage() {
   );
 
   const isDisabled = loading || !form.title.trim() || !form.project.trim();
-
-  // Rendering table row (desktop)
-  const renderDesktopRow = (link) => (
-    <tr key={link.id}>
-      <td>
-        <div style={{ fontWeight: 600, color: '#1F2937' }}>{link.title}</div>
-        <div style={{ fontSize: '12px', color: '#9CA3AF' }}>{link.project}</div>
-      </td>
-      <td>
-        <code
-          style={{
-            background: '#F0F9FF', color: '#0369A1', padding: '3px 8px',
-            borderRadius: 5, fontSize: '12px', border: '1px solid #BAE6FD'
-          }}
-        >
-          /chat/join/{link.token}
-        </code>
-      </td>
-      <td style={{ textAlign: 'center' }}>
-        <span
-          style={{
-            background: '#ECFDF5', color: '#059669', padding: '2px 10px',
-            borderRadius: '12px', fontSize: '12px', fontWeight: 700
-          }}
-        >
-          {link.member_count ?? 0}x
-        </span>
-      </td>
-      <td style={{ color: '#6B7280', fontSize: '13px' }}>
-        {formatDate(link.created_at)}
-      </td>
-      <td style={{ textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-          <button onClick={() => handleCopy(link.token)} title="Salin link" className="action-btn">
-            <Copy size={13} /> Salin
-          </button>
-          <a href={`/chat/join/${link.token}`} title="Buka link" className="action-btn">
-            <ExternalLink size={13} />
-          </a>
-          {deleteConfirm === link.id ? (
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button 
-                onClick={() => handleDelete(link.id)} 
-                style={{
-                  padding: '6px 10px', borderRadius: '6px', border: 'none',
-                  background: '#ef4444', color: '#fff', cursor: 'pointer',
-                  fontSize: '12px', fontWeight: 600
-                }}
-              >Ya</button>
-              <button 
-                onClick={() => setDeleteConfirm(null)}
-                className="action-btn"
-              >Batal</button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setDeleteConfirm(link.id)}
-              title="Hapus link"
-              className="action-btn delete"
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
   
   const pagePadding = isMobile ? '20px 14px' : isTablet ? '28px 20px' : '40px';
 
@@ -197,15 +133,15 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
-                  maxLength={15}
+                  maxLength={MAX_TITLE_LENGTH}
                   value={form.title}
-                  placeholder="contoh: Support Pelanggan Q1"
+                  placeholder="contoh: Client A"
                   className="link-input"
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
                 {form.title.length > 0 && (
-                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.title.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
-                    {form.title.length}/15
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.title.length >= MAX_TITLE_LENGTH ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.title.length}/{MAX_TITLE_LENGTH}
                   </div>
                 )}
               </div>
@@ -217,15 +153,15 @@ export default function CreateLinkPage() {
                 <input
                   type="text"
                   required
-                  maxLength={15}
+                  maxLength={MAX_PROJECT_LENGTH}
                   value={form.project}
-                  placeholder="contoh: Project Alpha"
+                  placeholder="contoh: Project Website Sekolah"
                   className="link-input"
                   onChange={(e) => setForm({ ...form, project: e.target.value })}
                 />
                 {form.project.length > 0 && (
-                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.project.length >= 15 ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
-                    {form.project.length}/15
+                  <div style={{ textAlign: 'right', fontSize: '11px', color: form.project.length >= MAX_PROJECT_LENGTH ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                    {form.project.length}/{MAX_PROJECT_LENGTH}
                   </div>
                 )}
               </div>

@@ -109,6 +109,8 @@ router.put("/:id", authenticate, requireAdmin, (req, res) => {
 // DELETE /api/users/:id — admin deletes user (cannot delete another admin)
 router.delete("/:id", authenticate, requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id);
+  const PRIMARY_ADMIN_EMAIL = 'admin@gmail.com';
+  const PRIMARY_ADMIN_USERNAME = 'admin';
 
   // Cannot delete yourself
   if (userId === req.user.id) {
@@ -118,11 +120,18 @@ router.delete("/:id", authenticate, requireAdmin, (req, res) => {
   }
 
   const user = db
-    .prepare("SELECT id, role FROM users WHERE id = ?")
+    .prepare("SELECT id, role, username, email FROM users WHERE id = ?")
     .get(userId);
   if (!user) return res.status(404).json({ error: "User tidak ditemukan." });
-  if (user.role === "admin")
-    return res.status(403).json({ error: "Tidak dapat menghapus akun admin." });
+
+  const isPrimaryAdmin =
+    user.role === 'admin'
+    && user.username === PRIMARY_ADMIN_USERNAME
+    && user.email === PRIMARY_ADMIN_EMAIL;
+
+  if (isPrimaryAdmin) {
+    return res.status(403).json({ error: 'Akun admin utama tidak dapat dihapus.' });
+  }
 
   db.prepare("DELETE FROM forum_members WHERE user_id = ?").run(userId);
   db.prepare("DELETE FROM users WHERE id = ?").run(userId);

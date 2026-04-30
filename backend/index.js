@@ -23,6 +23,9 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
+// Pass io to routes that need it
+messageRoutes.setIo(io);
+
 // Middleware
 app.use(cors({ origin: '*' }));
 app.use(express.json());
@@ -32,7 +35,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 initDatabase();
 
 // HTTP Routes
-app.get('/', (req, res) => res.json({ message: 'Welcome to WebChat API' }));
+app.get('/api', (req, res) => res.json({ message: 'Welcome to WebChat API' }));
 app.get('/health', (req, res) => res.status(200).json({ status: 'OK', uptime: process.uptime() }));
 app.use('/api/auth', authRoutes);
 app.use('/api/forums', forumRoutes);
@@ -253,6 +256,14 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`🔴 Disconnected: ${socket.user.username}`);
   });
+});
+
+// Serve Frontend in Production
+const frontendDistPath = path.join(__dirname, 'dist');
+app.use(express.static(frontendDistPath));
+
+app.use((req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 server.listen(PORT, () => {

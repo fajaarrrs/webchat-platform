@@ -21,7 +21,7 @@ import { api } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
 
 const forumColors = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#0891B2', '#BE185D'];
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 // Parse timestamps coming from the server (stored in UTC as "YYYY-MM-DD HH:MM:SS").
 const parseUtcDate = (value) => {

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment variables (SENSITIVE!)
+.env
+frontend/.env
+backend/.env
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Build output
+frontend/dist/
+frontend/dist.zip
+
+# Deployment zip files
+*.zip
+
+# Debug/test scripts
+check.js
+check-login.js
+
+# Reverted features (keep out of repo)
+backend/routes/events.js
+frontend/src/components/CreateEventModal.jsx
+
+# OS files
+.DS_Store
+Thumbs.db

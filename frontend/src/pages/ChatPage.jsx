@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
@@ -12,7 +12,7 @@ import {
   Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings,
 } from 'lucide-react';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
 const JAKARTA_TIMEZONE = 'Asia/Jakarta';
 const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -582,7 +582,7 @@ export default function ChatPage() {
 
     try {
       const token = localStorage.getItem('wchat_token');
-      const res = await fetch('http://localhost:5000/api/messages/upload', {
+      const res = await fetch(`${BASE_URL}/api/messages/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -1828,7 +1828,7 @@ export default function ChatPage() {
                             </div>
                           </div>
                           <a
-                            href={`http://localhost:5000/api/messages/download/${file.id}`}
+                            href={`${BASE_URL}/api/messages/download/${file.id}`}
                             target="_blank"
                             rel="noreferrer"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', flexShrink: 0 }}

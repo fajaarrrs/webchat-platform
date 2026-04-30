@@ -7,6 +7,10 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+let _io = null;
+function setIo(io) { _io = io; }
+module.exports.setIo = setIo;
+
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -164,6 +168,35 @@ router.post('/upload', authenticate, upload.single('file'), (req, res) => {
     );
 
     const message = mapMessageWithSender(result.lastInsertRowid);
+
+    // Broadcast via socket to all members in the forum room
+    if (_io) {
+      _io.to(`forum:${forumId}`).emit('new_message', message);
+
+      // Update forum preview for all members
+      const latest = db.prepare(`
+        SELECT m.id, m.content, m.file_name, m.file_type, m.created_at,
+               u.id AS user_id, u.username, u.role
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE m.forum_id = ?
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT 1
+      `).get(forumId);
+
+      _io.to(`forum:${forumId}`).emit('forum_preview_updated', {
+        id: forumId,
+        forum_id: forumId,
+        last_message: latest?.content || '',
+        last_file_name: latest?.file_name || null,
+        last_file_type: latest?.file_type || null,
+        last_activity: latest?.created_at || null,
+        last_sender_id: latest?.user_id || null,
+        last_sender_username: latest?.username || null,
+        last_sender_role: latest?.role || null,
+      });
+    }
+
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ error: 'Gagal mengunggah file.' });
@@ -181,3 +214,4 @@ router.use((error, _req, res, next) => {
 });
 
 module.exports = router;
+module.exports.setIo = setIo;

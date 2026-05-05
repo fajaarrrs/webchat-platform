@@ -104,14 +104,24 @@ io.on('connection', (socket) => {
   });
 
   // Send a message
-  socket.on('send_message', ({ forumId, content, replyToId }) => {
+  socket.on('send_message', ({ forumId, content, replyToId, eventData }) => {
+    require('fs').appendFileSync('socket_debug.log', JSON.stringify({ event: 'send_message', forumId, content, replyToId, eventData }) + '\n');
+    console.log('[DEBUG] send_message received:', { forumId, content, replyToId, eventData });
     const fid = parseInt(forumId);
     const replyId = replyToId ? parseInt(replyToId) : null;
-    if (!content?.trim()) return;
+    
+    // Allow empty content if it's an event
+    if (!content?.trim() && !eventData) {
+      console.log('[DEBUG] send_message returned early: no content and no eventData');
+      return;
+    }
 
     // Verify membership
     const allowed = canAccessForum(fid);
-    if (!allowed) return;
+    if (!allowed) {
+      console.log('[DEBUG] send_message returned early: not allowed for user', socket.user.id, 'in forum', fid);
+      return;
+    }
 
     // Persist to DB
     let safeReplyId = null;
@@ -129,42 +139,64 @@ io.on('connection', (socket) => {
       }
     }
 
-    const result = db.prepare(
-      `INSERT INTO messages (
-        forum_id, user_id, content, reply_to_id,
-        reply_preview_username, reply_preview_content, reply_preview_file_name, reply_preview_file_url, reply_preview_file_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      fid,
-      socket.user.id,
-      content.trim(),
-      safeReplyId,
-      replySnapshot?.username || null,
-      replySnapshot?.content || null,
-      replySnapshot?.file_name || null,
-      replySnapshot?.file_url || null,
-      replySnapshot?.file_type || null,
-    );
+    const isEvent = eventData ? 1 : 0;
+    const eventName = eventData?.name || null;
+    const eventDescription = eventData?.description || null;
+    const eventStartAt = eventData?.start_at || null;
+    const eventEndAt = eventData?.end_at || null;
+    const eventLocation = eventData?.location || null;
+    const eventCallLink = eventData?.call_link || null;
 
-    const message = db.prepare(`
-      SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
-             m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
-             u.username, u.role,
-              COALESCE(ru.username, m.reply_preview_username) AS reply_username,
-              COALESCE(rm.content, m.reply_preview_content) AS reply_content,
-              COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
-              COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
-              COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
-      FROM messages m
-      JOIN users u ON m.user_id = u.id
-      LEFT JOIN messages rm ON m.reply_to_id = rm.id
-      LEFT JOIN users ru ON rm.user_id = ru.id
-      WHERE m.id = ?
-    `).get(result.lastInsertRowid);
+    try {
+      const result = db.prepare(
+        `INSERT INTO messages (
+          forum_id, user_id, content, reply_to_id,
+          reply_preview_username, reply_preview_content, reply_preview_file_name, reply_preview_file_url, reply_preview_file_type,
+          is_event, event_name, event_description, event_start_at, event_end_at, event_location, event_call_link
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        fid,
+        socket.user.id,
+        content?.trim() || '',
+        safeReplyId,
+        replySnapshot?.username || null,
+        replySnapshot?.content || null,
+        replySnapshot?.file_name || null,
+        replySnapshot?.file_url || null,
+        replySnapshot?.file_type || null,
+        isEvent,
+        eventName,
+        eventDescription,
+        eventStartAt,
+        eventEndAt,
+        eventLocation,
+        eventCallLink
+      );
 
-    // Broadcast to everyone in the room (including sender)
-    io.to(`forum:${fid}`).emit('new_message', message);
-    emitForumPreview(fid);
+      const message = db.prepare(`
+        SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
+               m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+               m.is_event, m.event_name, m.event_description, m.event_start_at, m.event_end_at, m.event_location, m.event_call_link,
+               u.username, u.role,
+                COALESCE(ru.username, m.reply_preview_username) AS reply_username,
+                COALESCE(rm.content, m.reply_preview_content) AS reply_content,
+                COALESCE(rm.file_name, m.reply_preview_file_name) AS reply_file_name,
+                COALESCE(rm.file_url, m.reply_preview_file_url) AS reply_file_url,
+                COALESCE(rm.file_type, m.reply_preview_file_type) AS reply_file_type
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        LEFT JOIN messages rm ON m.reply_to_id = rm.id
+        LEFT JOIN users ru ON rm.user_id = ru.id
+        WHERE m.id = ?
+      `).get(result.lastInsertRowid);
+
+      // Broadcast to everyone in the room (including sender)
+      io.to(`forum:${fid}`).emit('new_message', message);
+      emitForumPreview(fid);
+    } catch (err) {
+      console.error('Socket send_message error:', err);
+      require('fs').appendFileSync('socket_error.log', err.toString() + '\n');
+    }
   });
 
   // Edit message (admin or message owner)
@@ -189,6 +221,7 @@ io.on('connection', (socket) => {
     const updatedMessage = db.prepare(`
       SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
              m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+             m.is_event, m.event_name, m.event_description, m.event_start_at, m.event_end_at, m.event_location, m.event_call_link,
              u.username, u.role,
              COALESCE(ru.username, m.reply_preview_username) AS reply_username,
              COALESCE(rm.content, m.reply_preview_content) AS reply_content,
@@ -205,6 +238,55 @@ io.on('connection', (socket) => {
     io.to(`forum:${fid}`).emit('message_edited', updatedMessage);
     emitForumPreview(fid);
   });
+
+  // Edit event fields (admin or event owner)
+  socket.on('edit_event', ({ messageId, forumId, eventData }) => {
+    const mid = parseInt(messageId, 10);
+    const fid = parseInt(forumId, 10);
+    if (Number.isNaN(mid) || Number.isNaN(fid) || !eventData) return;
+
+    if (!canAccessForum(fid)) return;
+
+    const existing = db.prepare(
+      'SELECT id, forum_id, user_id, is_event FROM messages WHERE id = ? AND forum_id = ?'
+    ).get(mid, fid);
+    if (!existing || !existing.is_event) return;
+
+    const canEdit = socket.user.role === 'admin' || existing.user_id === socket.user.id;
+    if (!canEdit) return;
+
+    const eventName = eventData?.name || null;
+    const eventDescription = eventData?.description || null;
+    const eventStartAt = eventData?.start_at || null;
+    const eventEndAt = eventData?.end_at || null;
+    const eventLocation = eventData?.location || null;
+    const eventCallLink = eventData?.call_link || null;
+
+    db.prepare(`
+      UPDATE messages SET
+        event_name = ?,
+        event_description = ?,
+        event_start_at = ?,
+        event_end_at = ?,
+        event_location = ?,
+        event_call_link = ?,
+        edited_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(eventName, eventDescription, eventStartAt, eventEndAt, eventLocation, eventCallLink, mid);
+
+    const updatedMessage = db.prepare(`
+      SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
+             m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+             m.is_event, m.event_name, m.event_description, m.event_start_at, m.event_end_at, m.event_location, m.event_call_link,
+             u.username, u.role
+      FROM messages m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.id = ?
+    `).get(mid);
+
+    io.to(`forum:${fid}`).emit('event_updated', updatedMessage);
+  });
+
 
   // Toggle pin for a message (admin only)
   socket.on('pin_message', ({ messageId, forumId }) => {

@@ -32,6 +32,7 @@ function mapMessageWithSender(messageId) {
   return db.prepare(`
     SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
            m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+           m.is_event, m.event_name, m.event_description, m.event_start_at, m.event_end_at, m.event_location, m.event_call_link,
            u.username, u.role,
            COALESCE(ru.username, m.reply_preview_username) AS reply_username,
            COALESCE(rm.content, m.reply_preview_content) AS reply_content,
@@ -96,6 +97,7 @@ router.get('/:forumId', authenticate, (req, res) => {
   const messages = db.prepare(`
     SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
            m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
+           m.is_event, m.event_name, m.event_description, m.event_start_at, m.event_end_at, m.event_location, m.event_call_link,
            u.username, u.role,
            COALESCE(ru.username, m.reply_preview_username) AS reply_username,
            COALESCE(rm.content, m.reply_preview_content) AS reply_content,

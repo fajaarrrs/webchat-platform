@@ -145,7 +145,7 @@ function renderMentions(text = '') {
 
 // Message text with read-more toggle. Preserves newlines and supports
 // a mobile/desktop line clamp with a fallback character limit.
-function MessageText({ text = '', isMobile = false, className = '' }) {
+function MessageText({ text = '', isMobile = false, className = '', selectionMode = false, isMe = false }) {
   const ref = useRef(null);
   const [expanded, setExpanded] = useState(false);
   const [needsToggle, setNeedsToggle] = useState(false);
@@ -216,16 +216,42 @@ function MessageText({ text = '', isMobile = false, className = '' }) {
 
   if (!text) return null;
 
+  const handleToggleClick = (e) => {
+    if (selectionMode) return;
+    const tgt = e.target;
+    // don't toggle when clicking interactive elements inside the message
+    if (tgt && tgt.closest && tgt.closest('a, button, input, textarea, svg, path')) return;
+    if (!needsToggle) return;
+    setExpanded(v => !v);
+  };
+
   return (
     <div className={className} style={{ width: '100%' }}>
-      <div ref={ref} style={needsToggle && !expanded ? collapsedStyle : expandedStyle}>
+      <div
+        ref={ref}
+        onClick={handleToggleClick}
+        onKeyDown={(e) => {
+          if (selectionMode) return;
+          if (!needsToggle) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(v => !v);
+          }
+        }}
+        role={needsToggle ? 'button' : undefined}
+        tabIndex={needsToggle ? 0 : undefined}
+        style={{
+          ...(needsToggle && !expanded ? collapsedStyle : expandedStyle),
+          cursor: needsToggle && !selectionMode ? 'pointer' : undefined,
+        }}
+      >
         {renderMentions(text)}
       </div>
       {needsToggle && (
         <button
           type="button"
           onClick={() => setExpanded(v => !v)}
-          className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+          className={isMe ? 'mt-2 text-xs font-semibold text-white/90 hover:underline' : 'mt-2 text-xs font-semibold text-blue-600 hover:underline'}
         >
           {expanded ? 'Tutup' : 'Baca selengkapnya'}
         </button>
@@ -1803,10 +1829,10 @@ export default function ChatPage() {
                                   </a>
                                 </div>
                               )}
-                              {msg.content && <MessageText text={msg.content} isMobile={isMobile} className="mt-2 text-[13px]" />}
+                              {msg.content && <MessageText text={msg.content} isMobile={isMobile} className="mt-2 text-[13px]" selectionMode={selectionMode} isMe={isMe} />}
                             </div>
                           ) : (
-                            <MessageText text={msg.content} isMobile={isMobile} />
+                            <MessageText text={msg.content} isMobile={isMobile} selectionMode={selectionMode} isMe={isMe} />
                           )}
 
                           <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>

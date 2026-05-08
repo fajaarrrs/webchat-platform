@@ -58,6 +58,13 @@ function initDatabase() {
       reply_preview_file_name TEXT,
       reply_preview_file_url TEXT,
       reply_preview_file_type TEXT,
+      is_event INTEGER NOT NULL DEFAULT 0,
+      event_name TEXT,
+      event_description TEXT,
+      event_start_at DATETIME,
+      event_end_at DATETIME,
+      event_location TEXT,
+      event_call_link TEXT,
       edited_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (forum_id) REFERENCES forums(id),
@@ -110,6 +117,27 @@ function initDatabase() {
   }
   if (!hasColumn('edited_at')) {
     db.exec('ALTER TABLE messages ADD COLUMN edited_at DATETIME');
+  }
+  if (!hasColumn('is_event')) {
+    db.exec('ALTER TABLE messages ADD COLUMN is_event INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!hasColumn('event_name')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_name TEXT');
+  }
+  if (!hasColumn('event_description')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_description TEXT');
+  }
+  if (!hasColumn('event_start_at')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_start_at DATETIME');
+  }
+  if (!hasColumn('event_end_at')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_end_at DATETIME');
+  }
+  if (!hasColumn('event_location')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_location TEXT');
+  }
+  if (!hasColumn('event_call_link')) {
+    db.exec('ALTER TABLE messages ADD COLUMN event_call_link TEXT');
   }
 
   // Ensure legacy seeded admin account is migrated to the latest default credentials.

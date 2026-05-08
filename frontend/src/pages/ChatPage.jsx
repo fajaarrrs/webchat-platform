@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
+import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
@@ -10,7 +11,8 @@ import {
   Search, Send, Paperclip, MoreVertical,
   FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
   Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown, Pencil,
-  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings,
+  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings, Calendar,
+  Clock, MapPin
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
@@ -281,6 +283,10 @@ export default function ChatPage() {
   const [joinLoading, setJoinLoading] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null); // msg object being edited
+  const [viewingEvent, setViewingEvent] = useState(null); // msg object being viewed
+  const [eventLoading, setEventLoading] = useState(false);
   const [chatTab, setChatTab] = useState('all');
   const [favoriteForumIds, setFavoriteForumIds] = useState([]);
 
@@ -399,6 +405,7 @@ export default function ChatPage() {
       setMessages((prev) => prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)));
       syncForumPreview(updatedMessage);
     });
+
     // Presence events
     socket.on('presence:forum_users', (payload) => {
       const fid = payload?.forumId;
@@ -608,6 +615,30 @@ export default function ChatPage() {
     });
     setInputText('');
     setReplyTo(null);
+  };
+
+  const handleCreateEvent = (eventData) => {
+    if (!activeForumId) return;
+    socketRef.current?.emit('send_message', {
+      forumId: activeForumId,
+      content: '',
+      eventData,
+    });
+    setShowEventModal(false);
+    addToast('Event berhasil dibuat!', 'success');
+  };
+
+  const handleEditEvent = (eventData) => {
+    if (!editingEvent || !activeForumId) return;
+    setEventLoading(true);
+    socketRef.current?.emit('edit_event', {
+      messageId: editingEvent.id,
+      forumId: activeForumId,
+      eventData,
+    });
+    setEditingEvent(null);
+    setEventLoading(false);
+    addToast('Event berhasil diperbarui!', 'success');
   };
 
   const handleSelectMention = (username, mentionMeta) => {
@@ -1730,42 +1761,106 @@ export default function ChatPage() {
                                 />
                               )}
                             </div>
-                          )}
-                          {!!msg.is_pinned && (
-                            <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
-                              <Pin size={9} /> Pinned
-                            </div>
-                          )}
+                            {replyPreview.isImage && replyPreview.fileUrl && (
+                              <img
+                                src={`${BASE_URL}${replyPreview.fileUrl}`}
+                                alt={replyPreview.fileName || 'Reply image'}
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 8,
+                                  objectFit: 'cover',
+                                  flexShrink: 0,
+                                  background: isMe ? 'rgba(255,255,255,0.18)' : '#E5E7EB',
+                                }}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {!!msg.is_pinned && !msg.is_event && (
+                          <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
+                            <Pin size={9} /> Pinned
+                          </div>
+                        )}
 
-                          {msg.file_url ? (
-                            <div>
-                              {isImageMessage ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 220 }}>
-                                  <a
-                                    href={`${BASE_URL}${msg.file_url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    style={{ textDecoration: 'none', display: 'block' }}
+                        {!!msg.is_event ? (
+                          <div className="flex flex-col">
+                            <div className="px-3.5 pt-3 pb-2">
+                              <div className="flex items-start gap-3">
+                                <div className="mt-0.5 bg-[#c8e6b2] p-2 rounded-lg text-[#075e54] flex-shrink-0">
+                                  <Calendar size={20} />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-bold text-[15px] leading-tight text-slate-800">{msg.event_name}</div>
+                                  <div className="text-[13px] text-slate-600 mt-1">
+                                    {new Date(msg.event_start_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    {msg.event_end_at ? ` - ${new Date(msg.event_end_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                                  </div>
+                                  {msg.event_location && <div className="text-[13px] text-slate-600">{msg.event_location}</div>}
+                                  {msg.event_description && <div className="text-[12px] mt-1 text-slate-500 italic line-clamp-2">{msg.event_description}</div>}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="border-t border-black/5 flex flex-col">
+                              {msg.event_call_link && (
+                                <a href={msg.event_call_link} target="_blank" rel="noreferrer" className="text-center text-[14px] font-semibold py-2.5 text-[#075e54] hover:bg-black/5 transition-colors no-underline border-b border-black/5 block">
+                                  Join Call
+                                </a>
+                              )}
+                              {(() => {
+                                const canEditEvent = user?.role === 'admin' || msg.user_id === user?.id;
+                                return canEditEvent ? (
+                                  <button
+                                    className="text-center text-[14px] font-semibold py-2.5 text-[#075e54] hover:bg-black/5 transition-colors cursor-pointer w-full border-none bg-transparent rounded-b-2xl"
+                                    onClick={() => setEditingEvent(msg)}
                                   >
-                                    <img
-                                      src={`${BASE_URL}${msg.file_url}`}
-                                      alt={msg.file_name || 'Gambar'}
-                                      style={{
-                                        width: '100%',
-                                        aspectRatio: '1 / 1',
-                                        objectFit: 'cover',
-                                        borderRadius: 12,
-                                        display: 'block',
-                                        background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
-                                      }}
-                                    />
-                                  </a>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                      <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
-                                      <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
-                                        {getFileLabel(msg.file_name || '', msg.file_type || '')}
+                                    Edit event
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="text-center text-[14px] font-semibold py-2.5 text-[#128C7E] hover:bg-black/5 transition-colors cursor-pointer w-full border-none bg-transparent rounded-b-2xl"
+                                    onClick={() => setViewingEvent(msg)}
+                                  >
+                                    Lihat detail
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        ) : msg.file_url ? (
+                          <div>
+                            {isImageMessage ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 220 }}>
+                                <a
+                                  href={`${BASE_URL}${msg.file_url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ textDecoration: 'none', display: 'block' }}
+                                >
+                                  <img
+                                    src={`${BASE_URL}${msg.file_url}`}
+                                    alt={msg.file_name || 'Gambar'}
+                                    style={{
+                                      width: '100%',
+                                      aspectRatio: '1 / 1',
+                                      objectFit: 'cover',
+                                      borderRadius: 12,
+                                      display: 'block',
+                                      background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
+                                    }}
+                                  />
+                                </a>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                    <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
+                                      {getFileLabel(msg.file_name || '', msg.file_type || '')}
+                                    </span>
+                                    {msg.file_size ? (
+                                      <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
+                                        · {(msg.file_size / 1024).toFixed(0)} KB
                                       </span>
                                       {msg.file_size ? (
                                         <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
@@ -1828,22 +1923,61 @@ export default function ChatPage() {
                                     <Download size={14} />
                                   </a>
                                 </div>
-                              )}
-                              {msg.content && <MessageText text={msg.content} isMobile={isMobile} className="mt-2 text-[13px]" selectionMode={selectionMode} isMe={isMe} />}
-                            </div>
-                          ) : (
-                            <MessageText text={msg.content} isMobile={isMobile} selectionMode={selectionMode} isMe={isMe} />
-                          )}
-
-                          <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>
-                            {!!msg.edited_at && <span>diedit</span>}
-                            {formatTime(msg.created_at)}
-                            {isMe && <CheckCheck size={12} />}
-                          </div>
-                            </>
-                        )}
-                        </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                                  background: isMe ? 'rgba(255,255,255,0.18)' : getFileInfo(msg.file_name || '').bg,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  {(() => { const { Icon, color } = getFileInfo(msg.file_name || ''); return <Icon size={20} color={isMe ? '#fff' : color} />; })()}
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden' }}>
+                                  <div style={{
+                                    fontSize: 13, fontWeight: 600, lineHeight: 1.3,
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    color: isMe ? '#fff' : '#1F2937',
+                                  }}>
+                                    {msg.file_name}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.65)' : '#9CA3AF', marginTop: 2 }}>
+                                    {getFileInfo(msg.file_name || '').label}
+                                    {msg.file_size ? ` · ${(msg.file_size / 1024).toFixed(0)} KB` : ''}
+                                  </div>
+                                </div>
+                                <a
+                                  href={`${BASE_URL}/api/messages/download/${msg.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{
+                                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                                    background: isMe ? 'rgba(255,255,255,0.2)' : '#F3F4F6',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: isMe ? '#fff' : '#6B7280',
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  <Download size={14} />
+                                </a>
+                              </div>
+                            )}
+                        {msg.content && !msg.is_event && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
                       </div>
+                    ) : (
+                      !msg.is_event && renderMentions(msg.content)
+                    )}
+
+                    <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px] px-2 pb-1', 
+                      msg.is_event ? 'text-slate-500' : (isMe ? 'text-white/65' : 'text-slate-400')
+                    )}>
+                      {!!msg.edited_at && <span>diedit</span>}
+                      {formatTime(msg.created_at)}
+                      {isMe && <CheckCheck size={12} />}
+                    </div>
+                  </div>
+                </div>
 
                       {/* Dropdown trigger — right of OTHERS bubble */}
                       {!selectionMode && !isMe && (
@@ -1904,13 +2038,17 @@ export default function ChatPage() {
                   </button>
                   {showAttach && (
                     <div className="absolute bottom-11 left-0 z-50 flex min-w-[170px] flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-                      {[['Dokumen', FileText, '#2563EB'], ['Gambar', ImageIcon, '#7c3aed']].map(([label, Icon, color]) => (
+                      {[
+                        ['Dokumen', FileText, '#2563EB', () => fileInputRef.current?.click()],
+                        ['Gambar', ImageIcon, '#7c3aed', () => fileInputRef.current?.click()],
+                        ['Event', Calendar, '#f43f5e', () => { setShowAttach(false); setShowEventModal(true); }]
+                      ].map(([label, Icon, color, onClick]) => (
                         <button
                           key={label} type="button"
-                          onClick={() => fileInputRef.current.click()}
+                          onClick={onClick}
                           className="flex items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2 text-[13px] whitespace-nowrap text-slate-700 transition-all duration-200 hover:bg-slate-100"
                         >
-                          <Icon size={15} color={color} /> Upload {label}
+                          <Icon size={15} color={color} /> {label === 'Event' ? 'Buat' : 'Upload'} {label}
                         </button>
                       ))}
                     </div>
@@ -2239,6 +2377,142 @@ export default function ChatPage() {
                 >{joinLoading ? 'Bergabung...' : 'Gabung'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Event Modal */}
+      {showEventModal && (
+        <CreateEventModal
+          onClose={() => setShowEventModal(false)}
+          onSubmit={handleCreateEvent}
+          loading={false}
+        />
+      )}
+
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <CreateEventModal
+          onClose={() => setEditingEvent(null)}
+          onSubmit={handleEditEvent}
+          loading={eventLoading}
+          initialData={editingEvent}
+        />
+      )}
+
+      {/* View Event Modal */}
+      {viewingEvent && (
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(15, 23, 42, 0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setViewingEvent(null); }}
+        >
+          <div style={{
+            background: '#fff',
+            borderRadius: 18,
+            width: '100%',
+            maxWidth: 420,
+            boxShadow: '0 24px 64px rgba(15, 23, 42, 0.22)',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '18px 20px 14px',
+              borderBottom: '1px solid #F3F4F6',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: 'linear-gradient(135deg, #059669, #047857)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Calendar size={18} color="#fff" />
+                </div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>Detail Event</h2>
+              </div>
+              <button
+                onClick={() => setViewingEvent(null)}
+                style={{
+                  background: '#F3F4F6', border: 'none', cursor: 'pointer',
+                  width: 30, height: 30, borderRadius: 8,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#6B7280',
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Event Name */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Nama Event</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>{viewingEvent.event_name}</div>
+              </div>
+
+              {/* Date & Time */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Waktu</div>
+                <div style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={13} color="#6B7280" />
+                  {new Date(viewingEvent.event_start_at).toLocaleString('id-ID', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+                  })}
+                  {viewingEvent.event_end_at && (
+                    <span style={{ color: '#6B7280' }}>
+                      {' – '}
+                      {new Date(viewingEvent.event_end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Location */}
+              {viewingEvent.event_location && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Lokasi</div>
+                  <div style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MapPin size={13} color="#6B7280" />
+                    {viewingEvent.event_location}
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {viewingEvent.event_description && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Deskripsi</div>
+                  <div style={{
+                    fontSize: 13, color: '#374151', lineHeight: 1.6,
+                    background: '#F9FAFB', borderRadius: 8, padding: '10px 12px',
+                    border: '1px solid #E5E7EB',
+                  }}>
+                    {viewingEvent.event_description}
+                  </div>
+                </div>
+              )}
+
+              {/* Close button */}
+              <button
+                onClick={() => setViewingEvent(null)}
+                style={{
+                  padding: '11px', borderRadius: 10,
+                  border: '1.5px solid #E5E7EB',
+                  background: '#fff', color: '#6B7280',
+                  fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                  marginTop: 4,
+                }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

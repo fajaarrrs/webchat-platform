@@ -67,6 +67,14 @@ function initDatabase() {
   `);
 
   // Lightweight migrations for existing databases.
+  // ensure `last_online_at` exists on users table
+  const userColumns = db.prepare('PRAGMA table_info(users)').all();
+  const hasUserColumn = (name) => userColumns.some((col) => col.name === name);
+  if (!hasUserColumn('last_online_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN last_online_at DATETIME');
+  }
+
+
   const messageColumns = db.prepare('PRAGMA table_info(messages)').all();
   const hasColumn = (name) => messageColumns.some((col) => col.name === name);
 

@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../api';
 import { MessageSquare, Clock, CheckCircle, Inbox, ArrowUpRight, Hand } from 'lucide-react';
 import useBreakpoint from '../../hooks/useBreakpoint';
+import webcareLogo from '../../assets/webcare-logo.webp';
 
 const statusStyle = {
   active:  { bg: '#ecfdf5', color: '#059669', label: 'Aktif' },
@@ -62,17 +63,19 @@ export default function KaryawanDashboard() {
     <DashboardLayout>
       <div style={{ padding: isMobile ? '20px 14px' : isTablet ? '26px 20px' : '32px 36px', width: '100%' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div className="admin-dash-reveal" style={{ marginBottom: 28, '--dash-delay': '20ms' }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
-              {greeting}, {user?.username}!
-              <span className="admin-dash-wave-icon" aria-hidden="true">
-                <Hand size={24} color="#2563EB" strokeWidth={2.2} />
-              </span>
-            </h1>
-            <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
-              Berikut status antrian chat kamu hari ini.
-            </p>
-          </div>
+          <div className="admin-dash-reveal" style={{ marginBottom: 28, '--dash-delay': '20ms', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <img src={webcareLogo} alt="Webcare" style={{ height: 40, width: 40, borderRadius: 8, flexShrink: 0, marginTop: 4 }} />
+            <div style={{ flex: 1 }}>
+              <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1F2937', margin: 0 }}>
+                {greeting}, {user?.username}!
+                <span className="admin-dash-wave-icon" aria-hidden="true">
+                  <Hand size={24} color="#2563EB" strokeWidth={2.2} />
+                </span>
+              </h1>
+              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 6 }}>
+                Berikut status antrian chat kamu hari ini.
+              </p>
+            </div></div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
             {[

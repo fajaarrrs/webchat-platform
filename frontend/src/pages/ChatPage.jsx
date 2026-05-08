@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
+import webcareLogo from '../assets/webcare-logo.webp';
 import {
   Search, Send, Paperclip, MoreVertical,
   FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
@@ -63,6 +64,18 @@ function formatMessageGroupLabel(value) {
   }
 
   return chatListDateFormatter.format(activityDate);
+}
+
+function formatRelative(dt) {
+  const d = parseUtcDate(dt);
+  if (!d) return '—';
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Baru saja';
+  if (mins < 60) return `${mins} menit lalu`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  return `${Math.floor(hours / 24)} hari lalu`;
 }
 
 function isImageAttachment(fileName = '', fileType = '') {
@@ -130,6 +143,97 @@ function renderMentions(text = '') {
   });
 }
 
+// Message text with read-more toggle. Preserves newlines and supports
+// a mobile/desktop line clamp with a fallback character limit.
+function MessageText({ text = '', isMobile = false, className = '' }) {
+  const ref = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+
+  const FALLBACK_CHARS = 350;
+  const MOBILE_LINES = 5; // per user request
+  const DESKTOP_LINES = 8; // per user request
+  const maxLines = isMobile ? MOBILE_LINES : DESKTOP_LINES;
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    const el = ref.current;
+    const textStr = String(text || '');
+
+    // Fallback: check character limit
+    if (textStr.length > FALLBACK_CHARS) {
+      setNeedsToggle(true);
+      return;
+    }
+
+    // Measure overflow by temporarily applying clamp
+    const checkOverflow = () => {
+      if (!el) return;
+
+      // Store original inline styles
+      const origDisplay = el.style.display;
+      const origOrient = el.style.WebkitBoxOrient;
+      const origClamp = el.style.WebkitLineClamp;
+      const origOverflow = el.style.overflow;
+
+      // Apply clamp styles
+      el.style.display = '-webkit-box';
+      el.style.WebkitBoxOrient = 'vertical';
+      el.style.WebkitLineClamp = String(maxLines);
+      el.style.overflow = 'hidden';
+
+      // Measure after a small delay to allow layout
+      setTimeout(() => {
+        const isOverflow = el.scrollHeight > el.clientHeight + 2;
+        setNeedsToggle(isOverflow);
+
+        // Restore original styles
+        el.style.display = origDisplay;
+        el.style.WebkitBoxOrient = origOrient;
+        el.style.WebkitLineClamp = origClamp;
+        el.style.overflow = origOverflow;
+      }, 10);
+    };
+
+    checkOverflow();
+
+    // Re-check on resize
+    const handleResize = () => checkOverflow();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [text, maxLines]);
+
+  const collapsedStyle = {
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: String(maxLines),
+    overflow: 'hidden',
+    whiteSpace: 'pre-wrap',
+  };
+
+  const expandedStyle = { whiteSpace: 'pre-wrap' };
+
+  if (!text) return null;
+
+  return (
+    <div className={className} style={{ width: '100%' }}>
+      <div ref={ref} style={needsToggle && !expanded ? collapsedStyle : expandedStyle}>
+        {renderMentions(text)}
+      </div>
+      {needsToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+        >
+          {expanded ? 'Tutup' : 'Baca selengkapnya'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { user, addToast, logout } = useAuth();
   const { isMobile } = useBreakpoint();
@@ -170,8 +274,12 @@ export default function ChatPage() {
   const [mobileMenu, setMobileMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [forumMembers, setForumMembers] = useState([]);
+  const [onlineSet, setOnlineSet] = useState(new Set());
+  const [lastSeenMap, setLastSeenMap] = useState({});
   const [caretPosition, setCaretPosition] = useState(0);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -180,6 +288,7 @@ export default function ChatPage() {
   const socketRef = useRef(null);
   const messageRefs = useRef({});
   const prevForumIdRef = useRef(null);
+  const activeForumIdRef = useRef(activeForumId);
   const longPressTimer = useRef(null);
   const skipFavoriteSaveRef = useRef(true);
   const skipChatTabSaveRef = useRef(true);
@@ -202,10 +311,10 @@ export default function ChatPage() {
       const updated = prev.map((forum) => (
         forum.id === forumId
           ? {
-              ...forum,
-              ...payload,
-              id: forum.id,
-            }
+            ...forum,
+            ...payload,
+            id: forum.id,
+          }
           : forum
       ));
 
@@ -240,6 +349,13 @@ export default function ChatPage() {
     const token = localStorage.getItem('wchat_token');
     const socket = io(SOCKET_URL, { auth: { token } });
     socketRef.current = socket;
+    socket.on('connect', () => {
+      console.log('🟢 Socket connected', socket.id);
+    });
+    socket.on('connect_error', (err) => {
+      console.error('Socket connect_error', err);
+      try { addToast(err?.message || 'Gagal terhubung ke server (socket).', 'error'); } catch { }
+    });
     socket.on('new_message', (msg) => {
       setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
       syncForumPreview(msg);
@@ -257,8 +373,57 @@ export default function ChatPage() {
       setMessages((prev) => prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)));
       syncForumPreview(updatedMessage);
     });
+    // Presence events
+    socket.on('presence:forum_users', (payload) => {
+      const fid = payload?.forumId;
+      if (!fid || fid !== activeForumIdRef.current) return;
+      const list = Array.isArray(payload?.online) ? payload.online : [];
+      console.log('📥 Forum members received:', list);
+      setForumMembers(list);
+      const map = {};
+      const os = new Set();
+      list.forEach((m) => {
+        map[m.id] = m.last_online_at || null;
+        if (m.online) os.add(m.id);
+      });
+      setLastSeenMap(map);
+      setOnlineSet(os);
+    });
+
+    socket.on('presence:user_online', (u) => {
+      if (!u || !u.id) return;
+      setOnlineSet((prev) => {
+        const next = new Set(prev);
+        next.add(u.id);
+        return next;
+      });
+      setLastSeenMap((prev) => ({ ...prev, [u.id]: null }));
+    });
+
+    socket.on('presence:user_offline', ({ id }) => {
+      if (!id) return;
+      setOnlineSet((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      const currentFid = activeForumIdRef.current;
+      if (currentFid) {
+        api.get(`/forums/${currentFid}/online`).then((data) => {
+          const list = data?.online || [];
+          const map = {};
+          list.forEach((m) => { map[m.id] = m.last_online_at || null; });
+          setLastSeenMap(map);
+          setForumMembers(list);
+        }).catch(() => { });
+      }
+    });
     return () => socket.disconnect();
   }, []);
+
+  useEffect(() => {
+    activeForumIdRef.current = activeForumId;
+  }, [activeForumId]);
 
   useEffect(() => {
     api.get('/forums').then(data => {
@@ -336,9 +501,24 @@ export default function ChatPage() {
     api.get(`/messages/${activeForumId}`)
       .then(data => setMessages(data))
       .finally(() => setLoadingMsgs(false));
-    api.get(`/forums/${activeForumId}/members`)
-      .then(data => setForumMembers(data))
-      .catch(() => setForumMembers([]));
+    api.get(`/forums/${activeForumId}/online`)
+      .then((data) => {
+        const list = data?.online || [];
+        setForumMembers(list);
+        const map = {};
+        const os = new Set();
+        list.forEach((m) => {
+          map[m.id] = m.last_online_at || null;
+          if (m.online) os.add(m.id);
+        });
+        setLastSeenMap(map);
+        setOnlineSet(os);
+      })
+      .catch(() => {
+        setForumMembers([]);
+        setLastSeenMap({});
+        setOnlineSet(new Set());
+      });
 
     setTimeout(() => messageInputRef.current?.focus(), 0);
   }, [activeForumId]);
@@ -391,8 +571,11 @@ export default function ChatPage() {
 
   const handleSend = e => {
     e?.preventDefault();
-    if (!inputText.trim() || !activeForumId) return;
-    socketRef.current?.emit('send_message', {
+    if (!inputText.trim() || !activeForumId) return; if (!socketRef.current || !socketRef.current.connected) {
+      try { addToast('Belum terhubung ke server. Silakan refresh atau login kembali.', 'error'); } catch { }
+      return;
+    }
+    socketRef.current.emit('send_message', {
       forumId: activeForumId,
       content: inputText.trim(),
       replyToId: replyTo?.id || null,
@@ -615,31 +798,40 @@ export default function ChatPage() {
   const canPin = () => user?.role === 'admin';
 
   const handleEditMessage = (msg) => {
-    messageInputRef.current?.blur();
     if (!canEdit(msg)) return;
+    setEditingMessageId(msg.id);
+    setEditingContent(msg.content || '');
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+  };
 
-    const nextText = window.prompt('Edit pesan:', msg.content || '');
-    if (nextText === null) return;
-
-    const trimmed = nextText.trim();
+  const handleSaveEditMessage = (msgId) => {
+    const trimmed = editingContent.trim();
     if (!trimmed) {
       addToast('Pesan tidak boleh kosong.', 'error');
       return;
     }
-    if (trimmed === (msg.content || '').trim()) {
-      setOpenDropdownId(null);
-      setMobileMenu(null);
+
+    const originalMsg = messages.find(m => m.id === msgId);
+    if (trimmed === (originalMsg?.content || '').trim()) {
+      setEditingMessageId(null);
+      setEditingContent('');
       return;
     }
 
     socketRef.current?.emit('edit_message', {
-      messageId: msg.id,
+      messageId: msgId,
       forumId: activeForumId,
       content: trimmed,
     });
 
-    setOpenDropdownId(null);
-    setMobileMenu(null);
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
   };
   const getReplyPreviewData = (msg) => {
     if (!msg.reply_to_id) return null;
@@ -867,12 +1059,12 @@ export default function ChatPage() {
   const mentionMeta = getActiveMentionQuery(inputText, caretPosition);
   const mentionSuggestions = mentionMeta
     ? forumMembers
-        .filter((member) => member?.username)
-        .filter((member) => {
-          if (!mentionMeta.query) return true;
-          return member.username.toLowerCase().includes(mentionMeta.query.toLowerCase());
-        })
-        .slice(0, 6)
+      .filter((member) => member?.username)
+      .filter((member) => {
+        if (!mentionMeta.query) return true;
+        return member.username.toLowerCase().includes(mentionMeta.query.toLowerCase());
+      })
+      .slice(0, 6)
     : [];
 
   const isTaggedForCurrentUser = (msg) => {
@@ -966,180 +1158,183 @@ export default function ChatPage() {
 
         {/* LEFT PANEL */}
         {showForumListPanel && (
-        <div style={{
-          width: isMobile ? '100%' : 300,
-          borderRight: isMobile ? 'none' : '1px solid #E5E7EB',
-          background: '#fff',
-          display: 'flex', flexDirection: 'column', flexShrink: 0,
-        }}>
-          <div style={{ padding: '14px 16px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
-              {user?.role !== 'admin' && (
-                <div data-quickmenu="true" style={{ position: 'relative' }}>
-                  <button
-                    onClick={() => setShowQuickMenu(v => !v)}
-                    title="Menu"
-                    style={{
-                      width: 32, height: 32, borderRadius: 8, border: '1.5px solid #E5E7EB',
-                      background: showQuickMenu ? '#EFF6FF' : '#fff', color: showQuickMenu ? '#2563EB' : '#6B7280', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    <MoreVertical size={15} />
-                  </button>
-
-                  {showQuickMenu && (
-                    <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
-                      {[
-                        { key: 'dashboard', label: 'Dashboard', icon: CornerUpLeft, onClick: handleGoDashboard },
-                        { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
-                        { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
-                        { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
-                        { key: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, danger: true },
-                      ].map(({ key, label, icon: Icon, onClick }) => (
-                        <button
-                          key={key}
-                          onClick={onClick}
-                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13, color: key === 'logout' ? '#DC2626' : '#374151', textAlign: 'left' }}
-                          onMouseEnter={e => e.currentTarget.style.background = key === 'logout' ? '#FEF2F2' : '#F9FAFB'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                        >
-                          <Icon size={14} /> {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div style={{ position: 'relative', marginBottom: 10 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-              <input
-                value={searchGroup}
-                onChange={e => setSearchGroup(e.target.value)}
-                placeholder="Cari atau mulai chat baru"
-                style={{
-                  width: '100%', padding: '9px 12px 9px 32px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 20, fontSize: 13,
-                  outline: 'none', background: '#F9FAFB', boxSizing: 'border-box',
-                }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-              {[
-                { key: 'all', label: 'Semua' },
-                { key: 'favorites', label: 'Favorit' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setChatTab(tab.key)}
-                  style={{
-                    padding: '5px 13px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                    background: chatTab === tab.key ? '#2563EB' : '#F3F4F6',
-                    color: chatTab === tab.key ? '#fff' : '#6B7280',
-                    fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {filteredForums.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9CA3AF', fontSize: 13 }}>
-                {chatTab === 'favorites'
-                  ? 'Belum ada forum favorit.'
-                  : user?.role === 'admin' ? 'Belum ada forum.' : (
-                  <>
-                    <p style={{ margin: '0 0 10px' }}>Belum ada forum.</p>
+          <div style={{
+            width: isMobile ? '100%' : 300,
+            borderRight: isMobile ? 'none' : '1px solid #E5E7EB',
+            background: '#fff',
+            display: 'flex', flexDirection: 'column', flexShrink: 0,
+          }}>
+            <div style={{ padding: '14px 16px 10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <img src={webcareLogo} alt="Webcare" style={{ height: 24, width: 24, borderRadius: 4 }} />
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+              </div>
+                {user?.role !== 'admin' && (
+                  <div data-quickmenu="true" style={{ position: 'relative' }}>
                     <button
-                      onClick={() => setShowJoinModal(true)}
+                      onClick={() => setShowQuickMenu(v => !v)}
+                      title="Menu"
                       style={{
-                        padding: '8px 14px', borderRadius: 8, border: 'none',
-                        background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                        color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        width: 32, height: 32, borderRadius: 8, border: '1.5px solid #E5E7EB',
+                        background: showQuickMenu ? '#EFF6FF' : '#fff', color: showQuickMenu ? '#2563EB' : '#6B7280', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                     >
-                      <UserPlus size={13} /> Gabung Forum
+                      <MoreVertical size={15} />
                     </button>
-                  </>
+
+                    {showQuickMenu && (
+                      <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
+                        {[
+                          { key: 'dashboard', label: 'Dashboard', icon: CornerUpLeft, onClick: handleGoDashboard },
+                          { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
+                          { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
+                          { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
+                          { key: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, danger: true },
+                        ].map(({ key, label, icon: Icon, onClick }) => (
+                          <button
+                            key={key}
+                            onClick={onClick}
+                            style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13, color: key === 'logout' ? '#DC2626' : '#374151', textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = key === 'logout' ? '#FEF2F2' : '#F9FAFB'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <Icon size={14} /> {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-            {filteredForums.map((forum, i) => {
-              const isActive = activeForumId === forum.id;
-              const activityLabel = formatForumActivityLabel(forum.last_activity || forum.created_at);
-              return (
-                <div
-                  key={forum.id}
-                  onClick={() => setActiveForumId(forum.id)}
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+                <input
+                  value={searchGroup}
+                  onChange={e => setSearchGroup(e.target.value)}
+                  placeholder="Cari atau mulai chat baru"
                   style={{
-                    padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
-                    background: isActive ? '#EFF6FF' : 'transparent',
-                    borderLeft: isActive ? '3px solid #2563EB' : '3px solid transparent',
-                    display: 'flex', alignItems: 'center', gap: 12,
+                    width: '100%', padding: '9px 12px 9px 32px',
+                    border: '1.5px solid #E5E7EB', borderRadius: 20, fontSize: 13,
+                    outline: 'none', background: '#F9FAFB', boxSizing: 'border-box',
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F9FAFB'; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <div style={{
-                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: getColor(i),
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, color: '#fff',
-                  }}>
-                    {getInitials(forum.title)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {forum.title}
-                        </span>
-                        {favoriteForumIds.includes(forum.id) && <Star size={11} color="#d97706" fill="#fbbf24" />}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{forum.project}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                        {getForumPreview(forum)}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      {activityLabel && (
-                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                          {activityLabel}
-                        </span>
-                      )}
-                      {Number(forum.unread_count) > 0 && (
-                        <span style={{
-                          minWidth: 20,
-                          height: 20,
-                          padding: '0 6px',
-                          borderRadius: 999,
-                          background: '#2563EB',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          lineHeight: 1,
-                        }}>
-                          {formatUnreadCount(Number(forum.unread_count))}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  onFocus={e => e.target.style.borderColor = '#2563EB'}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+                {[
+                  { key: 'all', label: 'Semua' },
+                  { key: 'favorites', label: 'Favorit' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setChatTab(tab.key)}
+                    style={{
+                      padding: '5px 13px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                      background: chatTab === tab.key ? '#2563EB' : '#F3F4F6',
+                      color: chatTab === tab.key ? '#fff' : '#6B7280',
+                      fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0,
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredForums.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9CA3AF', fontSize: 13 }}>
+                  {chatTab === 'favorites'
+                    ? 'Belum ada forum favorit.'
+                    : user?.role === 'admin' ? 'Belum ada forum.' : (
+                      <>
+                        <p style={{ margin: '0 0 10px' }}>Belum ada forum.</p>
+                        <button
+                          onClick={() => setShowJoinModal(true)}
+                          style={{
+                            padding: '8px 14px', borderRadius: 8, border: 'none',
+                            background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+                            color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                          }}
+                        >
+                          <UserPlus size={13} /> Gabung Forum
+                        </button>
+                      </>
+                    )}
                 </div>
-              );
-            })}
+              )}
+              {filteredForums.map((forum, i) => {
+                const isActive = activeForumId === forum.id;
+                const activityLabel = formatForumActivityLabel(forum.last_activity || forum.created_at);
+                return (
+                  <div
+                    key={forum.id}
+                    onClick={() => setActiveForumId(forum.id)}
+                    style={{
+                      padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
+                      background: isActive ? '#EFF6FF' : 'transparent',
+                      borderLeft: isActive ? '3px solid #2563EB' : '3px solid transparent',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F9FAFB'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                      background: getColor(i),
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, fontWeight: 700, color: '#fff',
+                    }}>
+                      {getInitials(forum.title)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {forum.title}
+                          </span>
+                          {favoriteForumIds.includes(forum.id) && <Star size={11} color="#d97706" fill="#fbbf24" />}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{forum.project}</div>
+                        <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                          {getForumPreview(forum)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                        {activityLabel && (
+                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                            {activityLabel}
+                          </span>
+                        )}
+                        {Number(forum.unread_count) > 0 && (
+                          <span style={{
+                            minWidth: 20,
+                            height: 20,
+                            padding: '0 6px',
+                            borderRadius: 999,
+                            background: '#2563EB',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                          }}>
+                            {formatUnreadCount(Number(forum.unread_count))}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
         )}
 
         {/* CENTER PANEL */}
@@ -1384,144 +1579,212 @@ export default function ChatPage() {
                         isActiveMatch || isJumpedTarget ? 'ring-2 ring-blue-300' : ''
                       )}
                     >
-                    {/* Dropdown trigger — left of MY bubble */}
-                    {!selectionMode && isMe && (
-                      <div
-                        data-msgdropdown="true"
-                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
-                      >
-                        <button
-                          onClick={(e) => handleToggleDropdown(e, msg.id, true)}
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
+                      {/* Dropdown trigger — left of MY bubble */}
+                      {!selectionMode && isMe && (
+                        <div
+                          data-msgdropdown="true"
+                          className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                         >
-                          <ChevronDown size={13} />
-                        </button>
-                        {isOpen && (
-                          renderDropdown(msg, dropdownCoords)
-                        )}
-                      </div>
-                    )}
-
-                    {/* Avatar for others */}
-                    {!isMe && (
-                      <div
-                        className={cn(
-                          'mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center rounded-full text-[10px] font-bold text-blue-600',
-                          showSender ? 'visible bg-blue-50' : 'invisible bg-transparent'
-                        )}
-                      >
-                        {showSender ? getInitials(msg.username) : ''}
-                      </div>
-                    )}
-
-                    {/* Bubble */}
-                    <div className="max-w-[72%] md:max-w-[62%]">
-                      {showSender && (
-                        <div className="mb-1 pl-0.5">
-                          <div className="text-[13px] font-semibold text-slate-800">
-                            {msg.username}
-                          </div>
-                          <div className="mt-0.5 text-[11px] font-semibold" style={{ color: getRoleColor(msg.role) }}>
-                            {getRoleLabel(msg.role)}
-                          </div>
+                          <button
+                            onClick={(e) => handleToggleDropdown(e, msg.id, true)}
+                            className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
+                          >
+                            <ChevronDown size={13} />
+                          </button>
+                          {isOpen && (
+                            renderDropdown(msg, dropdownCoords)
+                          )}
                         </div>
                       )}
 
-                      <div
-                        className={cn(
-                          'break-words text-sm leading-relaxed shadow-sm',
-                          'rounded-2xl',
-                          isMe ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800',
-                          !isMe && isHighlightedForMe ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : '',
-                          msg.file_url ? (isImageMessage ? 'p-2' : 'min-w-[210px] px-3 py-2.5') : 'px-3.5 py-2.5',
-                          isActiveMatch ? 'ring-2 ring-blue-300' : '',
-                          !isActiveMatch && matchesQuery ? 'ring-1 ring-blue-200' : ''
-                        )}
-                      >
-                        {replyPreview && (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => handleGoToReplyMessage(msg)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleGoToReplyMessage(msg);
-                              }
-                            }}
-                            className={cn(
-                              'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug transition-all duration-200',
-                              'cursor-pointer hover:opacity-90',
-                              isMe
-                                ? 'border-white/50 bg-white/15 text-white/95'
-                                : 'border-blue-600 bg-slate-100 text-slate-500'
-                            )}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>
-                                {replyPreview.username}
-                              </div>
-                              <div className={cn('truncate', isMe ? 'text-white/90' : 'text-slate-500')}>
-                                {replyPreview.content}
-                              </div>
+                      {/* Avatar for others */}
+                      {!isMe && (
+                        <div
+                          className={cn(
+                            'mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center rounded-full text-[10px] font-bold text-blue-600',
+                            showSender ? 'visible bg-blue-50' : 'invisible bg-transparent'
+                          )}
+                        >
+                          {showSender ? getInitials(msg.username) : ''}
+                        </div>
+                      )}
+
+                      {/* Bubble */}
+                      <div className="max-w-[72%] md:max-w-[62%]">
+                        {showSender && (
+                          <div className="mb-1 pl-0.5">
+                            <div className="text-[13px] font-semibold text-slate-800">
+                              {msg.username}
                             </div>
-                            {replyPreview.isImage && replyPreview.fileUrl && (
-                              <img
-                                src={`${BASE_URL}${replyPreview.fileUrl}`}
-                                alt={replyPreview.fileName || 'Reply image'}
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 8,
-                                  objectFit: 'cover',
-                                  flexShrink: 0,
-                                  background: isMe ? 'rgba(255,255,255,0.18)' : '#E5E7EB',
-                                }}
-                              />
-                            )}
-                          </div>
-                        )}
-                        {!!msg.is_pinned && (
-                          <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
-                            <Pin size={9} /> Pinned
+                            <div className="mt-0.5 text-[11px] font-semibold" style={{ color: getRoleColor(msg.role) }}>
+                              {getRoleLabel(msg.role)}
+                            </div>
                           </div>
                         )}
 
-                        {msg.file_url ? (
-                          <div>
-                            {isImageMessage ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 220 }}>
-                                <a
-                                  href={`${BASE_URL}${msg.file_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{ textDecoration: 'none', display: 'block' }}
-                                >
-                                  <img
-                                    src={`${BASE_URL}${msg.file_url}`}
-                                    alt={msg.file_name || 'Gambar'}
-                                    style={{
-                                      width: '100%',
-                                      aspectRatio: '1 / 1',
-                                      objectFit: 'cover',
-                                      borderRadius: 12,
-                                      display: 'block',
-                                      background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
-                                    }}
-                                  />
-                                </a>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                    <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
-                                      {getFileLabel(msg.file_name || '', msg.file_type || '')}
-                                    </span>
-                                    {msg.file_size ? (
-                                      <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
-                                        · {(msg.file_size / 1024).toFixed(0)} KB
+                        <div
+                          className={cn(
+                            'break-words text-sm leading-relaxed shadow-sm whitespace-pre-wrap',
+                            'rounded-2xl',
+                            isMe ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800',
+                            !isMe && isHighlightedForMe ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : '',
+                            msg.file_url ? (isImageMessage ? 'p-2' : 'min-w-[210px] px-3 py-2.5') : 'px-3.5 py-2.5',
+                            isActiveMatch ? 'ring-2 ring-blue-300' : '',
+                            !isActiveMatch && matchesQuery ? 'ring-1 ring-blue-200' : ''
+                          )}
+                        >
+                          {/* Edit Mode UI */}
+                          {editingMessageId === msg.id && canEdit(msg) ? (
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                              value={editingContent}
+                              onChange={(e) => setEditingContent(e.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:bg-white resize-none"
+                              rows={3}
+                              style={{ lineHeight: 1.4 }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditMessage(msg.id)}
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              >
+                                Batalkan
+                              </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                          {replyPreview && (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => handleGoToReplyMessage(msg)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  handleGoToReplyMessage(msg);
+                                }
+                              }}
+                              className={cn(
+                                'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug transition-all duration-200',
+                                'cursor-pointer hover:opacity-90',
+                                isMe
+                                  ? 'border-white/50 bg-white/15 text-white/95'
+                                  : 'border-blue-600 bg-slate-100 text-slate-500'
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>
+                                  {replyPreview.username}
+                                </div>
+                                <div className={cn('truncate', isMe ? 'text-white/90' : 'text-slate-500')}>
+                                  {replyPreview.content}
+                                </div>
+                              </div>
+                              {replyPreview.isImage && replyPreview.fileUrl && (
+                                <img
+                                  src={`${BASE_URL}${replyPreview.fileUrl}`}
+                                  alt={replyPreview.fileName || 'Reply image'}
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 8,
+                                    objectFit: 'cover',
+                                    flexShrink: 0,
+                                    background: isMe ? 'rgba(255,255,255,0.18)' : '#E5E7EB',
+                                  }}
+                                />
+                              )}
+                            </div>
+                          )}
+                          {!!msg.is_pinned && (
+                            <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
+                              <Pin size={9} /> Pinned
+                            </div>
+                          )}
+
+                          {msg.file_url ? (
+                            <div>
+                              {isImageMessage ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 220 }}>
+                                  <a
+                                    href={`${BASE_URL}${msg.file_url}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ textDecoration: 'none', display: 'block' }}
+                                  >
+                                    <img
+                                      src={`${BASE_URL}${msg.file_url}`}
+                                      alt={msg.file_name || 'Gambar'}
+                                      style={{
+                                        width: '100%',
+                                        aspectRatio: '1 / 1',
+                                        objectFit: 'cover',
+                                        borderRadius: 12,
+                                        display: 'block',
+                                        background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
+                                      }}
+                                    />
+                                  </a>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                      <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
+                                        {getFileLabel(msg.file_name || '', msg.file_type || '')}
                                       </span>
-                                    ) : null}
+                                      {msg.file_size ? (
+                                        <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
+                                          · {(msg.file_size / 1024).toFixed(0)} KB
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <a
+                                      href={`${BASE_URL}/api/messages/download/${msg.id}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                                        background: isMe ? 'rgba(255,255,255,0.2)' : '#F3F4F6',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: isMe ? '#fff' : '#6B7280',
+                                        textDecoration: 'none',
+                                      }}
+                                    >
+                                      <Download size={14} />
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{
+                                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                                    background: isMe ? 'rgba(255,255,255,0.18)' : getFileInfo(msg.file_name || '').bg,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  }}>
+                                    {(() => { const { Icon, color } = getFileInfo(msg.file_name || ''); return <Icon size={20} color={isMe ? '#fff' : color} />; })()}
+                                  </div>
+                                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div style={{
+                                      fontSize: 13, fontWeight: 600, lineHeight: 1.3,
+                                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                      color: isMe ? '#fff' : '#1F2937',
+                                    }}>
+                                      {msg.file_name}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.65)' : '#9CA3AF', marginTop: 2 }}>
+                                      {getFileInfo(msg.file_name || '').label}
+                                      {msg.file_size ? ` · ${(msg.file_size / 1024).toFixed(0)} KB` : ''}
+                                    </div>
                                   </div>
                                   <a
                                     href={`${BASE_URL}/api/messages/download/${msg.id}`}
@@ -1539,77 +1802,40 @@ export default function ChatPage() {
                                     <Download size={14} />
                                   </a>
                                 </div>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{
-                                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                                  background: isMe ? 'rgba(255,255,255,0.18)' : getFileInfo(msg.file_name || '').bg,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {(() => { const { Icon, color } = getFileInfo(msg.file_name || ''); return <Icon size={20} color={isMe ? '#fff' : color} />; })()}
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                  <div style={{
-                                    fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    color: isMe ? '#fff' : '#1F2937',
-                                  }}>
-                                    {msg.file_name}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.65)' : '#9CA3AF', marginTop: 2 }}>
-                                    {getFileInfo(msg.file_name || '').label}
-                                    {msg.file_size ? ` · ${(msg.file_size / 1024).toFixed(0)} KB` : ''}
-                                  </div>
-                                </div>
-                                <a
-                                  href={`${BASE_URL}/api/messages/download/${msg.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{
-                                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                                    background: isMe ? 'rgba(255,255,255,0.2)' : '#F3F4F6',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: isMe ? '#fff' : '#6B7280',
-                                    textDecoration: 'none',
-                                  }}
-                                >
-                                  <Download size={14} />
-                                </a>
-                              </div>
-                            )}
-                            {msg.content && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
-                          </div>
-                        ) : (
-                          renderMentions(msg.content)
-                        )}
+                              )}
+                              {msg.content && <MessageText text={msg.content} isMobile={isMobile} className="mt-2 text-[13px]" />}
+                            </div>
+                          ) : (
+                            <MessageText text={msg.content} isMobile={isMobile} />
+                          )}
 
-                        <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>
-                          {!!msg.edited_at && <span>diedit</span>}
-                          {formatTime(msg.created_at)}
-                          {isMe && <CheckCheck size={12} />}
+                          <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px]', isMe ? 'text-white/65' : 'text-slate-400')}>
+                            {!!msg.edited_at && <span>diedit</span>}
+                            {formatTime(msg.created_at)}
+                            {isMe && <CheckCheck size={12} />}
+                          </div>
+                            </>
+                        )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Dropdown trigger — right of OTHERS bubble */}
-                    {!selectionMode && !isMe && (
-                      <div
-                        data-msgdropdown="true"
-                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
-                      >
-                        <button
-                          onClick={(e) => handleToggleDropdown(e, msg.id, false)}
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
+                      {/* Dropdown trigger — right of OTHERS bubble */}
+                      {!selectionMode && !isMe && (
+                        <div
+                          data-msgdropdown="true"
+                          className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
                         >
-                          <ChevronDown size={13} />
-                        </button>
-                        {isOpen && (
-                          renderDropdown(msg, dropdownCoords)
-                        )}
-                      </div>
-                    )}
+                          <button
+                            onClick={(e) => handleToggleDropdown(e, msg.id, false)}
+                            className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
+                          >
+                            <ChevronDown size={13} />
+                          </button>
+                          {isOpen && (
+                            renderDropdown(msg, dropdownCoords)
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1668,9 +1894,10 @@ export default function ChatPage() {
                 <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
 
                 <div className="min-w-0 flex-1">
-                  <input
+                  <textarea
                     ref={messageInputRef}
                     value={inputText}
+                    rows={1}
                     onChange={e => setInputText(e.target.value)}
                     onClick={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
                     onKeyUp={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
@@ -1678,9 +1905,10 @@ export default function ChatPage() {
                     onKeyDown={(e) => handleMessageInputKeyDown(e, mentionSuggestions, mentionMeta)}
                     placeholder="Ketik pesan..."
                     className={cn(
-                      'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
-                      isMobile ? 'h-9 px-3 text-[13px]' : 'h-10 px-4 text-sm'
+                      'w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white resize-none',
+                      isMobile ? 'min-h-[36px] px-3 py-2 text-[13px]' : 'min-h-[44px] px-4 py-2.5 text-sm'
                     )}
+                    style={{ lineHeight: 1.4 }}
                   />
                 </div>
 
@@ -1777,22 +2005,56 @@ export default function ChatPage() {
                   <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '6px 0' }}>Belum ada anggota.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {forumMembers.map(member => (
-                      <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                          {getInitials(member.username)}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {member.username}
-                            {member.id === user?.id && (
-                              <span style={{ fontSize: 10, fontWeight: 600, color: '#6366F1', background: '#EEF2FF', borderRadius: 6, padding: '1px 6px' }}>Anda</span>
+{forumMembers.map(member => {
+                      const online = onlineSet.has(member.id) || !!member.online;
+                      const lastSeen = lastSeenMap[member.id] || member.last_online_at || null;
+                      
+                      // Determine role based on backend role or username pattern
+                      let displayRole = 'Client';
+                      let roleBg = '#ECFDF5';
+                      let roleColor = '#059669';
+                      
+                      if (member.role === 'admin') {
+                        displayRole = 'Admin';
+                        roleBg = '#F5F3FF';
+                        roleColor = '#7c3aed';
+                      } else if (member.role === 'karyawan' || (member.username && member.username.includes('-webcare'))) {
+                        displayRole = 'Employee';
+                        roleBg = '#EFF6FF';
+                        roleColor = '#2563EB';
+                      } else {
+                        displayRole = 'Client';
+                        roleBg = '#ECFDF5';
+                        roleColor = '#059669';
+                      }
+                      
+                      return (
+                        <div key={member.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', position: 'relative' }}>
+                            {getInitials(member.username)}
+                            {online && (
+                              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#10B981', border: '2px solid #fff' }} />
                             )}
                           </div>
-                          <div style={{ fontSize: 11, color: getRoleColor(member.role) }}>{getRoleLabel(member.role)}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>
+                                {member.username}
+                              </div>
+                              {member.id === user?.id && (
+                                <span style={{ fontSize: 10, fontWeight: 600, color: '#6366F1' }}>Anda</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: roleColor, marginTop: 2 }}>
+                              {displayRole}
+                            </div>
+                            <div style={{ fontSize: 11, color: online ? '#10B981' : '#9CA3AF', marginTop: 2 }}>
+                              {online ? 'Online' : `Terakhir terlihat: ${formatRelative(lastSeen)}`}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

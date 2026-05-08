@@ -1,6 +1,7 @@
 const express = require('express');
 const { db } = require('../database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const presence = require('../presence');
 
 const router = express.Router();
 const MAX_FORUM_TEXT_LENGTH = 25;
@@ -334,6 +335,53 @@ router.get('/:id/members', authenticate, (req, res) => {
   `).all(forumId);
 
   return res.json(members);
+});
+
+// GET /api/forums/:id/online — list forum members with online status and last_online_at
+router.get('/:id/online', authenticate, (req, res) => {
+  const forumId = parseInt(req.params.id, 10);
+  if (Number.isNaN(forumId)) {
+    return res.status(400).json({ error: 'Forum ID tidak valid.' });
+  }
+
+  const forumExists = db.prepare('SELECT id FROM forums WHERE id = ?').get(forumId);
+  if (!forumExists) {
+    return res.status(404).json({ error: 'Forum tidak ditemukan.' });
+  }
+
+  if (req.user.role !== 'admin') {
+    const membership = db.prepare(
+      'SELECT 1 FROM forum_members WHERE forum_id = ? AND user_id = ?'
+    ).get(forumId, req.user.id);
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Tidak memiliki akses ke forum ini.' });
+    }
+  }
+
+  const members = db.prepare(`
+    SELECT u.id, u.username, u.role, u.last_online_at
+    FROM forum_members fm
+    JOIN users u ON u.id = fm.user_id
+    WHERE fm.forum_id = ?
+    ORDER BY
+      CASE u.role
+        WHEN 'admin' THEN 1
+        WHEN 'karyawan' THEN 2
+        ELSE 3
+      END,
+      u.username COLLATE NOCASE ASC
+  `).all(forumId);
+
+  const result = members.map((m) => ({
+    id: m.id,
+    username: m.username,
+    role: m.role,
+    online: !!presence.isOnline(m.id),
+    last_online_at: m.last_online_at || null,
+  }));
+
+  return res.json({ forumId, online: result });
 });
 
 // DELETE /api/forums/:id/leave — leave forum (member only)

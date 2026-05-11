@@ -6,6 +6,7 @@ import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
+import webcareLogo from '../assets/webcare-logo.webp';
 import {
   Search, Send, Paperclip, MoreVertical,
   FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
@@ -1010,7 +1011,12 @@ export default function ChatPage() {
         }}>
           <div style={{ padding: '14px 16px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
+                  <img src={webcareLogo} alt="Webcare" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                </div>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+              </div>
               {user?.role !== 'admin' && (
                 <div data-quickmenu="true" style={{ position: 'relative' }}>
                   <button

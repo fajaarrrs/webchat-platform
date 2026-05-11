@@ -28,6 +28,34 @@ export default function DashboardLayout({ children, hideSidebar = false }) {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [menuOpen]);
 
+  useEffect(() => {
+    const setFavicon = (href) => {
+      try {
+        let link = document.querySelector("link[rel*='icon']");
+        if (link) {
+          if (link.getAttribute('href') !== href) {
+            link.setAttribute('href', href);
+            if (href.endsWith('.svg')) link.setAttribute('type', 'image/svg+xml');
+            else if (href.endsWith('.webp')) link.setAttribute('type', 'image/webp');
+            else link.removeAttribute('type');
+          }
+        } else {
+          link = document.createElement('link');
+          link.setAttribute('rel', 'icon');
+          link.setAttribute('href', href);
+          if (href.endsWith('.svg')) link.setAttribute('type', 'image/svg+xml');
+          else if (href.endsWith('.webp')) link.setAttribute('type', 'image/webp');
+          document.head.appendChild(link);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const isAdminArea = user?.role === 'admin' || location.pathname.startsWith('/admin');
+    setFavicon(isAdminArea ? '/favicon-admin.svg' : '/src/assets/webcare-logo.webp');
+  }, [user?.role, location.pathname]);
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
       {shouldRenderSidebar && !isMobile && <Sidebar />}

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import CreateEventModal from '../components/CreateEventModal';
+import EmojiPicker from '../components/EmojiPicker';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
@@ -14,6 +15,7 @@ import {
   Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings, Calendar,
   Clock, MapPin
 } from 'lucide-react';
+import { Smile } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
@@ -172,7 +174,12 @@ export default function ChatPage() {
   const [jumpedMessageId, setJumpedMessageId] = useState(null);
 
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
+  const [openReactionPickerFor, setOpenReactionPickerFor] = useState(null);
+  const [openReactionUsersFor, setOpenReactionUsersFor] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [reactionPickerPos, setReactionPickerPos] = useState(null);
+  const [reactionPickerMainEmojis, setReactionPickerMainEmojis] = useState([]);
+  const [reactionPickerShowExtended, setReactionPickerShowExtended] = useState(false);
   const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0 });
   const [mobileMenu, setMobileMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
@@ -186,6 +193,10 @@ export default function ChatPage() {
   const messageSearchInputRef = useRef(null);
   const socketRef = useRef(null);
   const messageRefs = useRef({});
+  const messageBubbleRefs = useRef({});
+  const messageReactionRefs = useRef({});
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
   const prevForumIdRef = useRef(null);
   const longPressTimer = useRef(null);
   const skipFavoriteSaveRef = useRef(true);
@@ -267,6 +278,9 @@ export default function ChatPage() {
     socket.on('event_updated', (updatedMessage) => {
       setMessages((prev) => prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)));
     });
+    socket.on('message_reactions_updated', ({ messageId, reactions, users }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: reactions || [], reacting_users: users || [] } : m));
+    });
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
     });
@@ -286,7 +300,6 @@ export default function ChatPage() {
       skipFavoriteSaveRef.current = true;
       return;
     }
-
     try {
       const raw = localStorage.getItem(favoriteKey);
       const parsed = raw ? JSON.parse(raw) : [];
@@ -367,6 +380,124 @@ export default function ChatPage() {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, []);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!openReactionPickerFor) return;
+      const pickerNode = emojiPickerRef.current;
+      if (pickerNode && pickerNode.contains(e.target)) return;
+      setOpenReactionPickerFor(null);
+      setReactionPickerPos(null);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openReactionPickerFor]);
+
+  // After the picker is rendered, measure and nudge it so it sits close to the bubble (not far above)
+  useEffect(() => {
+    if (!openReactionPickerFor || openReactionPickerFor === 'input' || !reactionPickerPos) return;
+    const pickerNode = emojiPickerRef.current;
+    const targetNode = messageRefs.current[openReactionPickerFor];
+    if (!pickerNode || !targetNode || !pickerNode.getBoundingClientRect) return;
+
+    const pickerRect = pickerNode.getBoundingClientRect();
+    const targetRect = targetNode.getBoundingClientRect();
+    const spaceAbove = targetRect.top - 8;
+    const spaceBelow = window.innerHeight - targetRect.bottom - 8;
+
+    let top;
+    if (spaceAbove >= pickerRect.height + 6) {
+      // place just above with small gap
+      top = Math.max(8, targetRect.top - pickerRect.height - 6);
+    } else if (spaceBelow >= pickerRect.height + 6) {
+      top = targetRect.bottom + 6;
+    } else {
+      // fallback: choose side with more space but clamp to viewport
+      if (spaceBelow > spaceAbove) {
+        top = Math.max(8, Math.min(targetRect.bottom + 6, window.innerHeight - pickerRect.height - 8));
+      } else {
+        top = Math.max(8, Math.min(targetRect.top - pickerRect.height - 6, window.innerHeight - pickerRect.height - 8));
+      }
+    }
+
+    setReactionPickerPos(prev => {
+      if (!prev) return prev;
+      if (Math.abs((prev.top || 0) - top) < 1) return prev;
+      return { ...prev, top };
+    });
+  }, [openReactionPickerFor, reactionPickerPos?.left, reactionPickerPos?.width, messages]);
+
+  // After input picker is rendered, ensure it does not overlap the input area
+  useEffect(() => {
+    if (openReactionPickerFor !== 'input' || !reactionPickerPos) return;
+    const pickerNode = emojiPickerRef.current;
+    const inputNode = messageInputRef.current;
+    if (!pickerNode || !inputNode || !pickerNode.getBoundingClientRect) return;
+
+    const pickerRect = pickerNode.getBoundingClientRect();
+    const inputRect = inputNode.getBoundingClientRect();
+    const overlap = pickerRect.bottom > inputRect.top - 8;
+    if (!overlap) return;
+
+    const nextTop = Math.max(8, inputRect.top - pickerRect.height - 8);
+    setReactionPickerPos(prev => {
+      if (!prev) return prev;
+      if (Math.abs((prev.top || 0) - nextTop) < 1) return prev;
+      return { ...prev, top: nextTop };
+    });
+  }, [openReactionPickerFor, reactionPickerPos?.left, reactionPickerPos?.width, inputText]);
+
+  // Position floating reaction containers next to the message bubble (align to bubble, not avatar)
+  useEffect(() => {
+    const updateReactionPositions = () => {
+      messages.forEach((m) => {
+        const parent = messageRefs.current[m.id];
+        const bubble = messageBubbleRefs.current[m.id];
+        const reactEl = messageReactionRefs.current[m.id];
+        if (!parent || !bubble || !reactEl) return;
+
+        try {
+          const parentRect = parent.getBoundingClientRect();
+          const bubbleRect = bubble.getBoundingClientRect();
+          const reactRect = reactEl.getBoundingClientRect();
+
+          let left;
+          const isMy = m.user_id === user?.id;
+          const offsetX = 6; // slight offset from bubble edge
+
+          if (isMy) {
+            // align reaction right edge with bubble right edge
+            left = bubbleRect.right - parentRect.left - reactRect.width + offsetX;
+          } else {
+            // align reaction left edge with bubble left edge
+            left = bubbleRect.left - parentRect.left + offsetX;
+          }
+
+          // clamp inside parent
+          left = Math.max(0, Math.min(left, parent.clientWidth - reactRect.width));
+          reactEl.style.left = `${left}px`;
+        } catch (err) {
+          // ignore measurement errors
+        }
+      });
+    };
+
+    updateReactionPositions();
+    window.addEventListener('resize', updateReactionPositions);
+    return () => window.removeEventListener('resize', updateReactionPositions);
+  }, [messages, user]);
+
+  // Close attach popup when clicking outside
+  useEffect(() => {
+    if (!showAttach) return;
+    const handle = (e) => {
+      if (e.target.closest('[data-attachmenu]')) return;
+      setShowAttach(false);
+    };
+    document.addEventListener('pointerdown', handle);
+    return () => document.removeEventListener('pointerdown', handle);
+  }, [showAttach]);
 
   useEffect(() => {
     const handleViewportChange = () => setOpenDropdownId(null);
@@ -489,6 +620,138 @@ export default function ChatPage() {
     setMobileMenu(null);
   };
 
+  const handleToggleReaction = async (messageId, emoji) => {
+    if (!messageId || !emoji) return;
+    const msg = messages.find(m => m.id === messageId);
+    const existing = msg?.reacting_users?.find(u => u.userId === user?.id);
+    const isRemoval = existing && existing.emoji === emoji;
+    const isChange = existing && existing.emoji !== emoji;
+
+    // Update user emoji prefs only when adding/changing to the new emoji
+    if (!isRemoval && (isChange || !existing)) {
+      try {
+        const key = `wchat_emoji_prefs_${user?.id}`;
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : { counts: {}, recents: [] };
+        parsed.counts = parsed.counts || {};
+        parsed.recents = parsed.recents || [];
+        parsed.counts[emoji] = (parsed.counts[emoji] || 0) + 1;
+        // move emoji to front of recents
+        parsed.recents = [emoji, ...parsed.recents.filter(e => e !== emoji)].slice(0, 50);
+        localStorage.setItem(key, JSON.stringify(parsed));
+      } catch (err) {
+        // ignore localstorage errors
+      }
+    }
+
+    // Prefer socket for realtime; fallback to HTTP API
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('toggle_reaction', { messageId, emoji });
+      return;
+    }
+
+    try {
+      const data = await api.post(`/messages/${messageId}/reactions`, { emoji });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: data.reactions || [], reacting_users: data.users || [] } : m));
+    } catch (err) {
+      addToast(err.message || 'Gagal mengubah reaksi.', 'error');
+    }
+  };
+
+  const computeMainEmojisForUser = (userId) => {
+    const defaults = ['👍','❤️','😂','🎉','😮'];
+    try {
+      const key = `wchat_emoji_prefs_${userId}`;
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : { counts: {}, recents: [] };
+      const recents = (parsed.recents || []).slice(0, 5);
+      const counts = parsed.counts || {};
+      const byCount = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+      const combined = [...recents, ...byCount.filter(e => !recents.includes(e))];
+      const result = [...new Set(combined)].slice(0,5);
+      if (result.length < 5) {
+        defaults.forEach(d => { if (!result.includes(d)) result.push(d); });
+      }
+      return result.slice(0,5);
+    } catch {
+      return ['👍','❤️','😂','🎉','😮'];
+    }
+  };
+
+  const openReactionPickerAtMessage = (msgId, variant = 'compact') => {
+    const node = messageRefs.current[msgId];
+    const isPanel = variant === 'panel';
+    const PICKER_WIDTH = isPanel ? 340 : 260;
+    const EST_HEIGHT = isPanel ? 320 : 100;
+    const width = Math.min(PICKER_WIDTH, Math.max(160, window.innerWidth - 16));
+    let left = Math.max(8, Math.min(window.innerWidth / 2 - width / 2, window.innerWidth - width - 8));
+    let top = 80;
+    if (node && node.getBoundingClientRect) {
+      const rect = node.getBoundingClientRect();
+      const msg = messages.find(m => m.id === msgId);
+      const isMe = !!(msg && msg.user_id === user?.id);
+
+      // Prefer showing the picker above the bubble. If not enough space, show below.
+      const preferAboveTop = rect.top - EST_HEIGHT - 8;
+      const preferBelowTop = rect.bottom + 8;
+      top = (preferAboveTop > 8) ? preferAboveTop : preferBelowTop;
+
+      // Anchor horizontally near the bubble edge
+      if (isMe) {
+        left = rect.right - width;
+      } else {
+        left = rect.left;
+      }
+
+      // For panel variant, if the panel is wider than available space near the bubble,
+      // try to center it over the viewport to avoid clipping the bubble.
+      if (isPanel) {
+        // If it would clip on the left, nudge right; if it would clip on the right, nudge left
+        left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      } else {
+        left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      }
+    }
+
+    setReactionPickerPos({ left, top, width });
+    setReactionPickerMainEmojis(computeMainEmojisForUser(user?.id));
+    setReactionPickerShowExtended(false);
+    setOpenReactionPickerFor(msgId);
+  };
+
+  const openEmojiPickerAtNode = (node) => {
+    if (!node) return;
+    const PICKER_WIDTH = 340;
+    const EST_HEIGHT = 320;
+    const width = Math.min(PICKER_WIDTH, Math.max(260, window.innerWidth - 16));
+    const rect = node.getBoundingClientRect();
+
+    // Prefer showing above input area if possible
+    let top = rect.top - EST_HEIGHT - 8;
+    const inputRect = messageInputRef.current?.getBoundingClientRect?.();
+    if (inputRect) {
+      top = inputRect.top - EST_HEIGHT - 8;
+    }
+    if (top < 8) top = rect.bottom + 8;
+
+    // If the picker would overlap the input area, push it above the input
+    if (inputRect) {
+      const maxTop = inputRect.top - EST_HEIGHT - 8;
+      if (top + EST_HEIGHT > inputRect.top - 8) {
+        top = Math.max(8, maxTop);
+      }
+    }
+
+    // Align with input left edge but clamp
+    let left = rect.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+
+    setReactionPickerPos({ left, top, width });
+    setReactionPickerMainEmojis(computeMainEmojisForUser(user?.id));
+    setReactionPickerShowExtended(false);
+    setOpenReactionPickerFor('input');
+  };
+
   const handleCopyMessage = async (msg) => {
     messageInputRef.current?.blur();
     const payload = msg?.content?.trim()
@@ -584,6 +847,16 @@ export default function ChatPage() {
     longPressTimer.current = setTimeout(() => setMobileMenu({ msg }), 600);
   };
   const handleTouchEnd = () => clearTimeout(longPressTimer.current);
+
+  const toggleAttachMenu = () => {
+    const next = !showAttach;
+    if (next) {
+      setOpenReactionPickerFor(null);
+      setReactionPickerPos(null);
+      setOpenReactionUsersFor(null);
+    }
+    setShowAttach(next);
+  };
 
   const handleJoinForum = async e => {
     e.preventDefault();
@@ -973,6 +1246,7 @@ export default function ChatPage() {
       {[
         { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
         ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
+        ...((msg.reacting_users || []).some(u => u.userId === user?.id) ? [] : [{ icon: Smile, label: 'Tambah Reaksi', onClick: () => { openReactionPickerAtMessage(msg.id, 'compact'); setOpenDropdownId(null); setMobileMenu(null); }, color: '#374151' }]),
         { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
         ...(canPin() ? [{
           icon: msg.is_pinned ? PinOff : Pin,
@@ -1367,7 +1641,7 @@ export default function ChatPage() {
             )}
 
             {/* Messages */}
-            <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4">
+            <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4" style={{ position: 'relative', zIndex: 0 }}>
               {loadingMsgs && <div className="p-4 text-center text-[13px] text-slate-400">Memuat pesan...</div>}
               {!loadingMsgs && messages.length === 0 && (
                 <div className="p-8 text-center text-[13px] text-slate-400">
@@ -1387,6 +1661,7 @@ export default function ChatPage() {
                 const showSender = !isMe && (i === 0 || prevMsg?.user_id !== msg.user_id);
                 const isHovered = hoveredMsgId === msg.id;
                 const isOpen = openDropdownId === msg.id;
+                const userReacted = !!((msg.reacting_users || []).some(u => u.userId === user?.id));
                 const isSelected = selectedMessageIds.includes(msg.id);
                 const textPayload = `${msg.content || ''} ${msg.file_name || ''}`.toLowerCase();
                 const matchesQuery = normalizedMessageSearch && textPayload.includes(normalizedMessageSearch);
@@ -1418,13 +1693,14 @@ export default function ChatPage() {
                         ));
                       }}
                       className={cn(
-                        'flex items-center gap-1.5 rounded-xl transition-all duration-200',
+                        'relative flex items-center gap-1.5 rounded-xl transition-all duration-200',
                         isMe ? 'justify-end' : 'justify-start',
                         i > 0 && prevMsg?.user_id !== msg.user_id ? 'mt-3.5' : 'mt-0.5',
                         selectionMode ? 'cursor-pointer px-1.5 py-0.5' : 'cursor-default',
                         selectionMode && isSelected ? 'bg-indigo-100' : '',
                         isActiveMatch || isJumpedTarget ? 'ring-2 ring-blue-300' : ''
                       )}
+                      style={{ paddingBottom: 22 }}
                     >
                     {/* Dropdown trigger — left of MY bubble */}
                     {!selectionMode && isMe && (
@@ -1457,7 +1733,7 @@ export default function ChatPage() {
                     )}
 
                     {/* Bubble */}
-                    <div className="max-w-[72%] md:max-w-[62%]">
+                    <div className="max-w-[72%] md:max-w-[62%]" ref={(node) => { if (node) messageBubbleRefs.current[msg.id] = node; else delete messageBubbleRefs.current[msg.id]; }}>
                       {showSender && (
                         <div className="mb-1 pl-0.5">
                           <div className="text-[13px] font-semibold text-slate-800">
@@ -1674,9 +1950,71 @@ export default function ChatPage() {
                       !msg.is_event && renderMentions(msg.content)
                     )}
 
-                    <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px] px-2 pb-1', 
-                      msg.is_event ? 'text-slate-500' : (isMe ? 'text-white/65' : 'text-slate-400')
-                    )}>
+                    <div
+                      ref={(node) => { if (node) messageReactionRefs.current[msg.id] = node; else delete messageReactionRefs.current[msg.id]; }}
+                      style={{ position: 'absolute', bottom: -14, zIndex: 50, display: 'flex', alignItems: 'center', gap: 6, left: 0 }}
+                    >
+                      {(msg.reactions || []).map((r) => {
+                        const reactedByMe = (msg.reacting_users || []).some(u => u.userId === user?.id && u.emoji === r.emoji);
+                        // Boxed Discord-like pill: small rounded rect with emoji + count inside
+                        return (
+                          <div key={r.emoji} style={{ display: 'flex', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleReaction(msg.id, r.emoji)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #2563EB',
+                                background: reactedByMe ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.12)',
+                                color: '#111827',
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                lineHeight: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              aria-label={`react-${r.emoji}`}
+                            >
+                              <span style={{ fontSize: 16, lineHeight: 1 }}>{r.emoji}</span>
+                              <span
+                                onClick={(e) => { e.stopPropagation(); setOpenReactionUsersFor({ messageId: msg.id, emoji: r.emoji }); }}
+                                style={{ fontSize: 12, fontWeight: 700, color: '#111827', userSelect: 'none' }}
+                                aria-label={`react-count-${r.emoji}`}
+                              >
+                                {r.count}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {openReactionUsersFor && openReactionUsersFor.messageId === msg.id && (
+                        <div style={{ position: 'absolute', left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)', zIndex: 50, background: '#fff', boxShadow: '0 8px 30px rgba(15,23,42,0.08)', borderRadius: 8, padding: 8, minWidth: 160 }}>
+                          {openReactionUsersFor.emoji ? (
+                            (msg.reacting_users || []).filter(u => u.emoji === openReactionUsersFor.emoji).map(u => (
+                              <div key={u.userId} style={{ fontSize: 13, padding: '4px 6px' }}>{u.username}</div>
+                            ))
+                          ) : (
+                            // grouped view: show each emoji and its users
+                            Object.entries((msg.reacting_users || []).reduce((acc, u) => { acc[u.emoji] = acc[u.emoji] || []; acc[u.emoji].push(u); return acc; }, {})).map(([emoji, users]) => (
+                              <div key={emoji} style={{ marginBottom: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{emoji} <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>{users.length}</span></div>
+                                {users.map(u => <div key={u.userId} style={{ fontSize: 13, padding: '2px 6px' }}>{u.username}</div>)}
+                              </div>
+                            ))
+                          )}
+                          <div style={{ textAlign: 'right' }}>
+                            <button type="button" onClick={() => setOpenReactionUsersFor(null)} style={{ fontSize: 12, marginTop: 6 }}>Close</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px] px-2 pb-1', msg.is_event ? 'text-slate-500' : (isMe ? 'text-white/65' : 'text-slate-400'))}>
                       {!!msg.edited_at && <span>diedit</span>}
                       {formatTime(msg.created_at)}
                       {isMe && <CheckCheck size={12} />}
@@ -1706,10 +2044,41 @@ export default function ChatPage() {
                 );
               })}
               <div ref={messagesEndRef} />
+              {openReactionPickerFor && reactionPickerPos && (
+                <div ref={emojiPickerRef} style={{ position: 'fixed', left: reactionPickerPos.left, top: reactionPickerPos.top, zIndex: 1300 }}>
+                  <EmojiPicker
+                    mainEmojis={reactionPickerMainEmojis}
+                    showExtended={reactionPickerShowExtended}
+                    onToggleExtended={(v) => setReactionPickerShowExtended(!!v)}
+                    onSelect={(emoji) => {
+                      if (openReactionPickerFor === 'input') {
+                        // insert emoji at caret position in the input
+                        const caret = typeof caretPosition === 'number' ? caretPosition : (messageInputRef.current?.value?.length || 0);
+                        const before = (inputText || '').slice(0, caret);
+                        const after = (inputText || '').slice(caret);
+                        const nextText = `${before}${emoji}${after}`;
+                        setInputText(nextText);
+                        setTimeout(() => {
+                          messageInputRef.current?.focus();
+                          const newPos = (caret || 0) + emoji.length;
+                          try { messageInputRef.current.setSelectionRange(newPos, newPos); } catch {}
+                          setCaretPosition(newPos);
+                        }, 0);
+                      } else {
+                        handleToggleReaction(openReactionPickerFor, emoji);
+                      }
+                      setOpenReactionPickerFor(null);
+                      setReactionPickerPos(null);
+                    }}
+                    width={reactionPickerPos.width}
+                    variant={openReactionPickerFor === 'input' ? 'panel' : 'compact'}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Input Area */}
-            <div className="border-t border-slate-200 bg-white/90 px-4 pb-4 pt-3 backdrop-blur-sm md:px-5">
+            <div className="border-t border-slate-200 bg-white/90 px-4 pb-4 pt-3 backdrop-blur-sm md:px-5" style={{ position: 'relative', zIndex: 20 }}>
               {replyTo && (
                 <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <CornerUpLeft size={13} color="#2563EB" />
@@ -1727,22 +2096,44 @@ export default function ChatPage() {
                 onSubmit={handleSend}
                 className={cn(
                   'relative flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
-                  isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-2'
+                  // keep vertical padding small so icons and input are same height
+                  isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-1.5'
                 )}
+                style={{ alignItems: 'center' }}
               >
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowAttach(!showAttach)}
-                    className={cn(
-                      'flex items-center justify-center rounded-full border-0 bg-slate-100 text-slate-500 transition-all duration-200 hover:bg-slate-200',
-                      isMobile ? 'h-8 w-8' : 'h-9 w-9'
-                    )}
-                  >
-                    <Paperclip size={isMobile ? 15 : 16} />
-                  </button>
+                <div className="relative" style={{ display: 'flex', alignItems: 'center' }}>
+                  <div className={cn('flex items-center', isMobile ? 'h-8' : 'h-9')} style={{ gap: 8, marginRight: 8 }}>
+                    <button
+                      data-attachmenu
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={toggleAttachMenu}
+                      className={cn(
+                        'flex items-center justify-center rounded-full border-0 bg-slate-100 text-slate-500 transition-all duration-200 hover:bg-slate-200',
+                        isMobile ? 'h-8 w-8' : 'h-9 w-9'
+                      )}
+                      style={{ boxSizing: 'border-box', padding: 0 }}
+                    >
+                      <Paperclip size={isMobile ? 15 : 16} />
+                    </button>
+
+                    <button
+                      ref={emojiButtonRef}
+                      type="button"
+                      onClick={(e) => { openEmojiPickerAtNode(emojiButtonRef.current); setShowAttach(false); }}
+                      title="Add emoji"
+                      className={cn(
+                        'flex items-center justify-center rounded-full border-0 bg-slate-100 text-slate-500 transition-all duration-200 hover:bg-slate-200',
+                        isMobile ? 'h-8 w-8' : 'h-9 w-9'
+                      )}
+                      style={{ boxSizing: 'border-box', padding: 0 }}
+                    >
+                      <Smile size={isMobile ? 15 : 16} />
+                    </button>
+                  </div>
+
                   {showAttach && (
-                    <div className="absolute bottom-11 left-0 z-50 flex min-w-[170px] flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                    <div data-attachmenu onPointerDown={(e) => e.stopPropagation()} style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 1300, minWidth: 170, display: 'flex', flexDirection: 'column', gap: 6, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', padding: 8, boxShadow: '0 12px 30px rgba(0,0,0,0.08)' }}>
                       {[
                         ['Dokumen', FileText, '#2563EB', () => fileInputRef.current?.click()],
                         ['Gambar', ImageIcon, '#7c3aed', () => fileInputRef.current?.click()],
@@ -1774,7 +2165,8 @@ export default function ChatPage() {
                     placeholder="Ketik pesan..."
                     className={cn(
                       'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
-                      isMobile ? 'h-9 px-3 text-[13px]' : 'h-10 px-4 text-sm'
+                      // match input height to icon buttons so they stay horizontally aligned
+                      isMobile ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-sm'
                     )}
                   />
                 </div>

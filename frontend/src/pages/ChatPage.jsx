@@ -6,131 +6,58 @@ import CreateEventModal from '../components/CreateEventModal';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
+import ForumListPanel from './chat/components/ForumListPanel';
+import MessageList from './chat/components/MessageList';
+import ChatInput from './chat/components/ChatInput';
+import DirectoryPanel from './chat/components/DirectoryPanel';
+import ChatHeader from './chat/components/ChatHeader';
+import FaqModal from './chat/components/FaqModal';
+import JoinModal from './chat/components/JoinModal';
+import ViewEventModal from './chat/components/ViewEventModal';
+import useChatSearch from './chat/hooks/useChatSearch';
 import {
-  Search, Send, Paperclip, MoreVertical,
-  FileText, ImageIcon, CheckCheck, MessagesSquare, UserPlus, X, Link2, Copy,
-  Reply, Pin, PinOff, Trash2, Users, Download, CornerUpLeft, ChevronDown, Pencil,
-  Info, Star, Eraser, LogOut, ChevronLeft, ChevronRight, HelpCircle, Settings, Calendar,
-  Clock, MapPin
+  cn,
+  escapeRegex,
+  formatForumActivityLabel,
+  formatMessageGroupLabel,
+  formatTime,
+  formatUnreadCount,
+  getActiveMentionQuery,
+  getColor,
+  getFileInfo,
+  getFileLabel,
+  getInitials,
+  getJakartaDateKey,
+  getRoleColor,
+  getRoleLabel,
+  isImageAttachment,
+  parseUtcDate,
+} from './chat/chatUtils';
+import {
+  Search,
+  MoreVertical,
+  MessagesSquare,
+  Copy,
+  Pencil,
+  Reply,
+  Pin,
+  PinOff,
+  Trash2,
+  X,
+  Link2,
+  Info,
+  Star,
+  Eraser,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  Calendar,
+  Clock,
+  MapPin,
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
-const forumColors = ['#2563EB', '#7c3aed', '#059669', '#d97706', '#0891b2', '#be185d'];
-const JAKARTA_TIMEZONE = 'Asia/Jakarta';
-const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: JAKARTA_TIMEZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const chatListDateFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: JAKARTA_TIMEZONE,
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
-
-function parseUtcDate(value) {
-  if (!value) return null;
-  const utc = value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`;
-  const date = new Date(utc);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getJakartaDateKey(date) {
-  return jakartaDateKeyFormatter.format(date);
-}
-
-function formatForumActivityLabel(value) {
-  const activityDate = parseUtcDate(value);
-  if (!activityDate) return '';
-
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const activityKey = getJakartaDateKey(activityDate);
-  if (activityKey === getJakartaDateKey(today)) return 'Today';
-  if (activityKey === getJakartaDateKey(yesterday)) return 'Yesterday';
-
-  return chatListDateFormatter.format(activityDate);
-}
-
-function formatMessageGroupLabel(value) {
-  const activityDate = parseUtcDate(value);
-  if (!activityDate) return '';
-
-  if (getJakartaDateKey(activityDate) === getJakartaDateKey(new Date())) {
-    return 'Hari ini';
-  }
-
-  return chatListDateFormatter.format(activityDate);
-}
-
-function isImageAttachment(fileName = '', fileType = '') {
-  return (fileType || '').startsWith('image/')
-    || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes((fileName.split('.').pop() || '').toLowerCase());
-}
-
-function getFileExtension(fileName = '') {
-  const ext = (fileName.split('.').pop() || '').trim();
-  return ext.toLowerCase();
-}
-
-function getFileInfo(name) {
-  const ext = getFileExtension(name);
-  const extLabel = ext.toUpperCase() || 'FILE';
-
-  if (ext === 'pdf') return { Icon: FileText, color: '#DC2626', bg: '#FEF2F2', label: extLabel };
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext))
-    return { Icon: ImageIcon, color: '#7c3aed', bg: '#F5F3FF', label: extLabel };
-  if (['doc', 'docx'].includes(ext))
-    return { Icon: FileText, color: '#2563EB', bg: '#EFF6FF', label: extLabel };
-  if (['xls', 'xlsx'].includes(ext))
-    return { Icon: FileText, color: '#059669', bg: '#ECFDF5', label: extLabel };
-  if (['zip', 'rar', '7z'].includes(ext))
-    return { Icon: FileText, color: '#b45309', bg: '#FFFBEB', label: extLabel };
-  return { Icon: FileText, color: '#6B7280', bg: '#F9FAFB', label: extLabel };
-}
-
-function getFileLabel(fileName = '', fileType = '') {
-  const ext = getFileExtension(fileName).toUpperCase();
-  if (ext) return ext;
-  if ((fileType || '').startsWith('image/')) return fileType.split('/')[1]?.toUpperCase() || 'IMAGE';
-  if (fileType) return fileType.split('/')[1]?.toUpperCase() || 'FILE';
-  return 'FILE';
-}
-
-function cn(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
-
-function escapeRegex(value = '') {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function getActiveMentionQuery(text = '', caretPosition = 0) {
-  const prefix = text.slice(0, caretPosition);
-  const match = prefix.match(/(^|\s)@([a-zA-Z0-9._-]*)$/);
-  if (!match) return null;
-  return {
-    query: match[2] || '',
-    replaceStart: prefix.length - match[2].length - 1,
-    replaceEnd: caretPosition,
-  };
-}
-
-function renderMentions(text = '') {
-  const mentionPattern = /(@[a-zA-Z0-9._-]+)/g;
-  const parts = String(text).split(mentionPattern);
-
-  return parts.map((part, idx) => {
-    if (/^@[a-zA-Z0-9._-]+$/.test(part)) {
-      return <span key={`mention-${idx}`} style={{ fontWeight: 600 }}>{part}</span>;
-    }
-    return <span key={`text-${idx}`}>{part}</span>;
-  });
-}
 
 export default function ChatPage() {
   const { user, addToast, logout } = useAuth();
@@ -163,7 +90,6 @@ export default function ChatPage() {
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showMessageSearch, setShowMessageSearch] = useState(false);
   const [messageSearch, setMessageSearch] = useState('');
-  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
   const [showDirectory, setShowDirectory] = useState(false);
@@ -171,7 +97,12 @@ export default function ChatPage() {
   const [jumpedMessageId, setJumpedMessageId] = useState(null);
 
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
+  const [openReactionPickerFor, setOpenReactionPickerFor] = useState(null);
+  const [openReactionUsersFor, setOpenReactionUsersFor] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [reactionPickerPos, setReactionPickerPos] = useState(null);
+  const [reactionPickerMainEmojis, setReactionPickerMainEmojis] = useState([]);
+  const [reactionPickerShowExtended, setReactionPickerShowExtended] = useState(false);
   const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0 });
   const [mobileMenu, setMobileMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
@@ -185,6 +116,10 @@ export default function ChatPage() {
   const messageSearchInputRef = useRef(null);
   const socketRef = useRef(null);
   const messageRefs = useRef({});
+  const messageBubbleRefs = useRef({});
+  const messageReactionRefs = useRef({});
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
   const prevForumIdRef = useRef(null);
   const longPressTimer = useRef(null);
   const skipFavoriteSaveRef = useRef(true);
@@ -266,6 +201,9 @@ export default function ChatPage() {
     socket.on('event_updated', (updatedMessage) => {
       setMessages((prev) => prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)));
     });
+    socket.on('message_reactions_updated', ({ messageId, reactions, users }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: reactions || [], reacting_users: users || [] } : m));
+    });
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
     });
@@ -285,7 +223,6 @@ export default function ChatPage() {
       skipFavoriteSaveRef.current = true;
       return;
     }
-
     try {
       const raw = localStorage.getItem(favoriteKey);
       const parsed = raw ? JSON.parse(raw) : [];
@@ -341,7 +278,6 @@ export default function ChatPage() {
     setSelectedMessageIds([]);
     setShowMessageSearch(false);
     setMessageSearch('');
-    setSearchMatchIndex(0);
     setShowDirectory(false);
     setShowPinnedMenu(false);
     setJumpedMessageId(null);
@@ -366,6 +302,124 @@ export default function ChatPage() {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, []);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!openReactionPickerFor) return;
+      const pickerNode = emojiPickerRef.current;
+      if (pickerNode && pickerNode.contains(e.target)) return;
+      setOpenReactionPickerFor(null);
+      setReactionPickerPos(null);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openReactionPickerFor]);
+
+  // After the picker is rendered, measure and nudge it so it sits close to the bubble (not far above)
+  useEffect(() => {
+    if (!openReactionPickerFor || openReactionPickerFor === 'input' || !reactionPickerPos) return;
+    const pickerNode = emojiPickerRef.current;
+    const targetNode = messageRefs.current[openReactionPickerFor];
+    if (!pickerNode || !targetNode || !pickerNode.getBoundingClientRect) return;
+
+    const pickerRect = pickerNode.getBoundingClientRect();
+    const targetRect = targetNode.getBoundingClientRect();
+    const spaceAbove = targetRect.top - 8;
+    const spaceBelow = window.innerHeight - targetRect.bottom - 8;
+
+    let top;
+    if (spaceAbove >= pickerRect.height + 6) {
+      // place just above with small gap
+      top = Math.max(8, targetRect.top - pickerRect.height - 6);
+    } else if (spaceBelow >= pickerRect.height + 6) {
+      top = targetRect.bottom + 6;
+    } else {
+      // fallback: choose side with more space but clamp to viewport
+      if (spaceBelow > spaceAbove) {
+        top = Math.max(8, Math.min(targetRect.bottom + 6, window.innerHeight - pickerRect.height - 8));
+      } else {
+        top = Math.max(8, Math.min(targetRect.top - pickerRect.height - 6, window.innerHeight - pickerRect.height - 8));
+      }
+    }
+
+    setReactionPickerPos(prev => {
+      if (!prev) return prev;
+      if (Math.abs((prev.top || 0) - top) < 1) return prev;
+      return { ...prev, top };
+    });
+  }, [openReactionPickerFor, reactionPickerPos?.left, reactionPickerPos?.width, messages]);
+
+  // After input picker is rendered, ensure it does not overlap the input area
+  useEffect(() => {
+    if (openReactionPickerFor !== 'input' || !reactionPickerPos) return;
+    const pickerNode = emojiPickerRef.current;
+    const inputNode = messageInputRef.current;
+    if (!pickerNode || !inputNode || !pickerNode.getBoundingClientRect) return;
+
+    const pickerRect = pickerNode.getBoundingClientRect();
+    const inputRect = inputNode.getBoundingClientRect();
+    const overlap = pickerRect.bottom > inputRect.top - 8;
+    if (!overlap) return;
+
+    const nextTop = Math.max(8, inputRect.top - pickerRect.height - 8);
+    setReactionPickerPos(prev => {
+      if (!prev) return prev;
+      if (Math.abs((prev.top || 0) - nextTop) < 1) return prev;
+      return { ...prev, top: nextTop };
+    });
+  }, [openReactionPickerFor, reactionPickerPos?.left, reactionPickerPos?.width, inputText]);
+
+  // Position floating reaction containers next to the message bubble (align to bubble, not avatar)
+  useEffect(() => {
+    const updateReactionPositions = () => {
+      messages.forEach((m) => {
+        const parent = messageRefs.current[m.id];
+        const bubble = messageBubbleRefs.current[m.id];
+        const reactEl = messageReactionRefs.current[m.id];
+        if (!parent || !bubble || !reactEl) return;
+
+        try {
+          const parentRect = parent.getBoundingClientRect();
+          const bubbleRect = bubble.getBoundingClientRect();
+          const reactRect = reactEl.getBoundingClientRect();
+
+          let left;
+          const isMy = m.user_id === user?.id;
+          const offsetX = 6; // slight offset from bubble edge
+
+          if (isMy) {
+            // align reaction right edge with bubble right edge
+            left = bubbleRect.right - parentRect.left - reactRect.width + offsetX;
+          } else {
+            // align reaction left edge with bubble left edge
+            left = bubbleRect.left - parentRect.left + offsetX;
+          }
+
+          // clamp inside parent
+          left = Math.max(0, Math.min(left, parent.clientWidth - reactRect.width));
+          reactEl.style.left = `${left}px`;
+        } catch (err) {
+          // ignore measurement errors
+        }
+      });
+    };
+
+    updateReactionPositions();
+    window.addEventListener('resize', updateReactionPositions);
+    return () => window.removeEventListener('resize', updateReactionPositions);
+  }, [messages, user]);
+
+  // Close attach popup when clicking outside
+  useEffect(() => {
+    if (!showAttach) return;
+    const handle = (e) => {
+      if (e.target.closest('[data-attachmenu]')) return;
+      setShowAttach(false);
+    };
+    document.addEventListener('pointerdown', handle);
+    return () => document.removeEventListener('pointerdown', handle);
+  }, [showAttach]);
 
   useEffect(() => {
     const handleViewportChange = () => setOpenDropdownId(null);
@@ -488,6 +542,172 @@ export default function ChatPage() {
     setMobileMenu(null);
   };
 
+  const handleToggleReaction = async (messageId, emoji) => {
+    if (!messageId || !emoji) return;
+    const msg = messages.find(m => m.id === messageId);
+    const existing = msg?.reacting_users?.find(u => u.userId === user?.id);
+    const isRemoval = existing && existing.emoji === emoji;
+    const isChange = existing && existing.emoji !== emoji;
+
+    // Update user emoji prefs only when adding/changing to the new emoji
+    if (!isRemoval && (isChange || !existing)) {
+      try {
+        const key = `wchat_emoji_prefs_${user?.id}`;
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : { counts: {}, recents: [] };
+        parsed.counts = parsed.counts || {};
+        parsed.recents = parsed.recents || [];
+        parsed.counts[emoji] = (parsed.counts[emoji] || 0) + 1;
+        // move emoji to front of recents
+        parsed.recents = [emoji, ...parsed.recents.filter(e => e !== emoji)].slice(0, 50);
+        localStorage.setItem(key, JSON.stringify(parsed));
+      } catch (err) {
+        // ignore localstorage errors
+      }
+    }
+
+    // Prefer socket for realtime; fallback to HTTP API
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('toggle_reaction', { messageId, emoji });
+      return;
+    }
+
+    try {
+      const data = await api.post(`/messages/${messageId}/reactions`, { emoji });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: data.reactions || [], reacting_users: data.users || [] } : m));
+    } catch (err) {
+      addToast(err.message || 'Gagal mengubah reaksi.', 'error');
+    }
+  };
+
+  const computeMainEmojisForUser = (userId) => {
+    const defaults = ['👍','❤️','😂','🎉','😮'];
+    try {
+      const key = `wchat_emoji_prefs_${userId}`;
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : { counts: {}, recents: [] };
+      const recents = (parsed.recents || []).slice(0, 5);
+      const counts = parsed.counts || {};
+      const byCount = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+      const combined = [...recents, ...byCount.filter(e => !recents.includes(e))];
+      const result = [...new Set(combined)].slice(0,5);
+      if (result.length < 5) {
+        defaults.forEach(d => { if (!result.includes(d)) result.push(d); });
+      }
+      return result.slice(0,5);
+    } catch {
+      return ['👍','❤️','😂','🎉','😮'];
+    }
+  };
+
+  const openReactionPickerAtMessage = (msgId, variant = 'compact') => {
+    const node = messageRefs.current[msgId];
+    const isPanel = variant === 'panel';
+    const PICKER_WIDTH = isPanel ? 340 : 260;
+    const EST_HEIGHT = isPanel ? 320 : 100;
+    const width = Math.min(PICKER_WIDTH, Math.max(160, window.innerWidth - 16));
+    let left = Math.max(8, Math.min(window.innerWidth / 2 - width / 2, window.innerWidth - width - 8));
+    let top = 80;
+    if (node && node.getBoundingClientRect) {
+      const rect = node.getBoundingClientRect();
+      const msg = messages.find(m => m.id === msgId);
+      const isMe = !!(msg && msg.user_id === user?.id);
+
+      // Prefer showing the picker above the bubble. If not enough space, show below.
+      const preferAboveTop = rect.top - EST_HEIGHT - 8;
+      const preferBelowTop = rect.bottom + 8;
+      top = (preferAboveTop > 8) ? preferAboveTop : preferBelowTop;
+
+      // Anchor horizontally near the bubble edge
+      if (isMe) {
+        left = rect.right - width;
+      } else {
+        left = rect.left;
+      }
+
+      // For panel variant, if the panel is wider than available space near the bubble,
+      // try to center it over the viewport to avoid clipping the bubble.
+      if (isPanel) {
+        // If it would clip on the left, nudge right; if it would clip on the right, nudge left
+        left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      } else {
+        left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      }
+    }
+
+    setReactionPickerPos({ left, top, width });
+    setReactionPickerMainEmojis(computeMainEmojisForUser(user?.id));
+    setReactionPickerShowExtended(false);
+    setOpenReactionPickerFor(msgId);
+  };
+
+  const openEmojiPickerAtNode = (node) => {
+    if (!node) return;
+    const PICKER_WIDTH = 340;
+    const EST_HEIGHT = 320;
+    const width = Math.min(PICKER_WIDTH, Math.max(260, window.innerWidth - 16));
+    const rect = node.getBoundingClientRect();
+
+    // Prefer showing above input area if possible
+    let top = rect.top - EST_HEIGHT - 8;
+    const inputRect = messageInputRef.current?.getBoundingClientRect?.();
+    if (inputRect) {
+      top = inputRect.top - EST_HEIGHT - 8;
+    }
+    if (top < 8) top = rect.bottom + 8;
+
+    // If the picker would overlap the input area, push it above the input
+    if (inputRect) {
+      const maxTop = inputRect.top - EST_HEIGHT - 8;
+      if (top + EST_HEIGHT > inputRect.top - 8) {
+        top = Math.max(8, maxTop);
+      }
+    }
+
+    // Align with input left edge but clamp
+    let left = rect.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+
+    setReactionPickerPos({ left, top, width });
+    setReactionPickerMainEmojis(computeMainEmojisForUser(user?.id));
+    setReactionPickerShowExtended(false);
+    setOpenReactionPickerFor('input');
+  };
+
+  const handleSelectPickerEmoji = (target, emoji) => {
+    if (target === 'input') {
+      const caret = typeof caretPosition === 'number' ? caretPosition : (messageInputRef.current?.value?.length || 0);
+      const before = (inputText || '').slice(0, caret);
+      const after = (inputText || '').slice(caret);
+      const nextText = `${before}${emoji}${after}`;
+      setInputText(nextText);
+      setTimeout(() => {
+        messageInputRef.current?.focus();
+        const newPos = (caret || 0) + emoji.length;
+        try { messageInputRef.current.setSelectionRange(newPos, newPos); } catch {}
+        setCaretPosition(newPos);
+      }, 0);
+    } else {
+      handleToggleReaction(target, emoji);
+    }
+
+    setOpenReactionPickerFor(null);
+    setReactionPickerPos(null);
+  };
+
+  const closeDropdowns = () => {
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+  };
+
+  const handleExitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedMessageIds([]);
+  };
+
+  const handleOpenEditEvent = (msg) => setEditingEvent(msg);
+  const handleOpenViewEvent = (msg) => setViewingEvent(msg);
+
   const handleCopyMessage = async (msg) => {
     messageInputRef.current?.blur();
     const payload = msg?.content?.trim()
@@ -584,6 +804,16 @@ export default function ChatPage() {
   };
   const handleTouchEnd = () => clearTimeout(longPressTimer.current);
 
+  const toggleAttachMenu = () => {
+    const next = !showAttach;
+    if (next) {
+      setOpenReactionPickerFor(null);
+      setReactionPickerPos(null);
+      setOpenReactionUsersFor(null);
+    }
+    setShowAttach(next);
+  };
+
   const handleJoinForum = async e => {
     e.preventDefault();
     const raw = joinLink.trim();
@@ -634,18 +864,6 @@ export default function ChatPage() {
     }
   };
 
-  const getInitials = (name = '') => name.slice(0, 2).toUpperCase();
-  const getColor = idx => forumColors[idx % forumColors.length];
-  const formatUnreadCount = (count) => (count > 99 ? '99+' : String(count));
-  const formatTime = dt => {
-    const parsed = parseUtcDate(dt);
-    if (!parsed) return '';
-    return parsed.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: JAKARTA_TIMEZONE });
-  };
-  const getRoleLabel = role =>
-    role === 'admin' ? 'Admin' : role === 'karyawan' ? 'Employee' : 'Client';
-  const getRoleColor = role =>
-    role === 'admin' ? '#6d28d9' : role === 'karyawan' ? '#1d4ed8' : '#059669';
   const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
   const canEdit = msg => (user?.role === 'admin' || msg.user_id === user?.id) && !msg.file_url;
   const canPin = () => user?.role === 'admin';
@@ -899,7 +1117,6 @@ export default function ChatPage() {
   const showForumListPanel = !isMobile || !activeForumId;
   const showChatPanel = !isMobile || !!activeForumId;
 
-  const normalizedMessageSearch = messageSearch.trim().toLowerCase();
   const mentionMeta = getActiveMentionQuery(inputText, caretPosition);
   const mentionSuggestions = mentionMeta
     ? forumMembers
@@ -909,6 +1126,7 @@ export default function ChatPage() {
           return member.username.toLowerCase().includes(mentionMeta.query.toLowerCase());
         })
         .slice(0, 6)
+        .map((member) => ({ ...member, roleLabel: getRoleLabel(member.role) }))
     : [];
 
   const isTaggedForCurrentUser = (msg) => {
@@ -922,10 +1140,13 @@ export default function ChatPage() {
     setMentionActiveIndex(0);
   }, [mentionMeta?.query, activeForumId]);
 
-  const searchMatches = normalizedMessageSearch
-    ? messages.filter((msg) => (`${msg.content || ''} ${msg.file_name || ''}`).toLowerCase().includes(normalizedMessageSearch))
-    : [];
-  const activeSearchMatchId = searchMatches[searchMatchIndex]?.id;
+  const {
+    normalizedMessageSearch,
+    searchMatches,
+    searchMatchIndex,
+    setSearchMatchIndex,
+    activeSearchMatchId,
+  } = useChatSearch(messages, messageSearch, activeForumId, messageRefs);
   const messageLookup = messages.reduce((lookup, message) => {
     lookup[message.id] = message;
     return lookup;
@@ -941,60 +1162,7 @@ export default function ChatPage() {
     return !!(msg.reply_username && user.username && msg.reply_username === user.username);
   };
 
-  useEffect(() => {
-    setSearchMatchIndex(0);
-  }, [messageSearch, activeForumId]);
-
-  useEffect(() => {
-    if (!activeSearchMatchId) return;
-    const node = messageRefs.current[activeSearchMatchId];
-    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [activeSearchMatchId]);
-  const pinnedMessages = messages.filter(m => m.is_pinned);
-  const latestPinnedMessage = pinnedMessages[pinnedMessages.length - 1] || null;
   const sharedFiles = messages.filter(m => m.file_url);
-
-  const renderDropdown = (msg, posStyle) => (
-    <div
-      data-msgdropdown="true"
-      style={{
-        position: 'fixed',
-        zIndex: 500,
-        minWidth: 152,
-        background: '#fff',
-        border: '1px solid #E5E7EB',
-        borderRadius: 10,
-        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)',
-        padding: 6,
-        ...posStyle,
-      }}
-    >
-      {[
-        { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
-        ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
-        { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
-        ...(canPin() ? [{
-          icon: msg.is_pinned ? PinOff : Pin,
-          label: msg.is_pinned ? 'Unpin' : 'Pin',
-          onClick: () => handlePin(msg),
-          color: '#374151',
-        }] : []),
-        ...(canDelete(msg) ? [{
-          icon: Trash2, label: 'Delete',
-          onClick: () => handleDelete(msg), color: '#DC2626',
-        }] : []),
-      ].map(({ icon: Icon, label, onClick, color }) => (
-        <button
-          key={label}
-          onClick={onClick}
-          className="flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] transition-all duration-200 hover:bg-slate-50"
-          style={{ color }}
-        >
-          <Icon size={14} /> {label}
-        </button>
-      ))}
-    </div>
-  );
 
   return (
     <DashboardLayout hideSidebar={isCompactChatLayout}>
@@ -1002,180 +1170,30 @@ export default function ChatPage() {
 
         {/* LEFT PANEL */}
         {showForumListPanel && (
-        <div style={{
-          width: isMobile ? '100%' : 300,
-          borderRight: isMobile ? 'none' : '1px solid #E5E7EB',
-          background: '#fff',
-          display: 'flex', flexDirection: 'column', flexShrink: 0,
-        }}>
-          <div style={{ padding: '14px 16px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
-              {user?.role !== 'admin' && (
-                <div data-quickmenu="true" style={{ position: 'relative' }}>
-                  <button
-                    onClick={() => setShowQuickMenu(v => !v)}
-                    title="Menu"
-                    style={{
-                      width: 32, height: 32, borderRadius: 8, border: '1.5px solid #E5E7EB',
-                      background: showQuickMenu ? '#EFF6FF' : '#fff', color: showQuickMenu ? '#2563EB' : '#6B7280', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    <MoreVertical size={15} />
-                  </button>
-
-                  {showQuickMenu && (
-                    <div style={{ position: 'absolute', top: 38, right: 0, width: 196, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
-                      {[
-                        { key: 'dashboard', label: 'Dashboard', icon: CornerUpLeft, onClick: handleGoDashboard },
-                        { key: 'settings', label: 'Settings', icon: Settings, onClick: handleOpenSettings },
-                        { key: 'join', label: 'Gabung Forum', icon: UserPlus, onClick: handleOpenJoinModal },
-                        { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: handleOpenFaq },
-                        { key: 'logout', label: 'Logout', icon: LogOut, onClick: handleLogout, danger: true },
-                      ].map(({ key, label, icon: Icon, onClick }) => (
-                        <button
-                          key={key}
-                          onClick={onClick}
-                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13, color: key === 'logout' ? '#DC2626' : '#374151', textAlign: 'left' }}
-                          onMouseEnter={e => e.currentTarget.style.background = key === 'logout' ? '#FEF2F2' : '#F9FAFB'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                        >
-                          <Icon size={14} /> {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div style={{ position: 'relative', marginBottom: 10 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-              <input
-                value={searchGroup}
-                onChange={e => setSearchGroup(e.target.value)}
-                placeholder="Cari atau mulai chat baru"
-                style={{
-                  width: '100%', padding: '9px 12px 9px 32px',
-                  border: '1.5px solid #E5E7EB', borderRadius: 20, fontSize: 13,
-                  outline: 'none', background: '#F9FAFB', boxSizing: 'border-box',
-                }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-              {[
-                { key: 'all', label: 'Semua' },
-                { key: 'favorites', label: 'Favorit' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setChatTab(tab.key)}
-                  style={{
-                    padding: '5px 13px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                    background: chatTab === tab.key ? '#2563EB' : '#F3F4F6',
-                    color: chatTab === tab.key ? '#fff' : '#6B7280',
-                    fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {filteredForums.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9CA3AF', fontSize: 13 }}>
-                {chatTab === 'favorites'
-                  ? 'Belum ada forum favorit.'
-                  : user?.role === 'admin' ? 'Belum ada forum.' : (
-                  <>
-                    <p style={{ margin: '0 0 10px' }}>Belum ada forum.</p>
-                    <button
-                      onClick={() => setShowJoinModal(true)}
-                      style={{
-                        padding: '8px 14px', borderRadius: 8, border: 'none',
-                        background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-                        color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                      }}
-                    >
-                      <UserPlus size={13} /> Gabung Forum
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-            {filteredForums.map((forum, i) => {
-              const isActive = activeForumId === forum.id;
-              const activityLabel = formatForumActivityLabel(forum.last_activity || forum.created_at);
-              return (
-                <div
-                  key={forum.id}
-                  onClick={() => setActiveForumId(forum.id)}
-                  style={{
-                    padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
-                    background: isActive ? '#EFF6FF' : 'transparent',
-                    borderLeft: isActive ? '3px solid #2563EB' : '3px solid transparent',
-                    display: 'flex', alignItems: 'center', gap: 12,
-                  }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F9FAFB'; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <div style={{
-                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: getColor(i),
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, color: '#fff',
-                  }}>
-                    {getInitials(forum.title)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {forum.title}
-                        </span>
-                        {favoriteForumIds.includes(forum.id) && <Star size={11} color="#d97706" fill="#fbbf24" />}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{forum.project}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                        {getForumPreview(forum)}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      {activityLabel && (
-                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                          {activityLabel}
-                        </span>
-                      )}
-                      {Number(forum.unread_count) > 0 && (
-                        <span style={{
-                          minWidth: 20,
-                          height: 20,
-                          padding: '0 6px',
-                          borderRadius: 999,
-                          background: '#2563EB',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          lineHeight: 1,
-                        }}>
-                          {formatUnreadCount(Number(forum.unread_count))}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          <ForumListPanel
+            isMobile={isMobile}
+            user={user}
+            searchGroup={searchGroup}
+            setSearchGroup={setSearchGroup}
+            chatTab={chatTab}
+            setChatTab={setChatTab}
+            showQuickMenu={showQuickMenu}
+            setShowQuickMenu={setShowQuickMenu}
+            filteredForums={filteredForums}
+            activeForumId={activeForumId}
+            setActiveForumId={setActiveForumId}
+            favoriteForumIds={favoriteForumIds}
+            formatForumActivityLabel={formatForumActivityLabel}
+            getForumPreview={getForumPreview}
+            formatUnreadCount={formatUnreadCount}
+            getInitials={getInitials}
+            getColor={getColor}
+            handleGoDashboard={handleGoDashboard}
+            handleOpenSettings={handleOpenSettings}
+            handleOpenJoinModal={handleOpenJoinModal}
+            handleOpenFaq={handleOpenFaq}
+            handleLogout={handleLogout}
+          />
         )}
 
         {/* CENTER PANEL */}
@@ -1189,84 +1207,27 @@ export default function ChatPage() {
         ) : (
           <div className="flex min-w-0 flex-1 flex-col bg-slate-50">
 
-            {/* Chat Header */}
-            <div className="relative z-[320] flex items-center justify-between border-b border-slate-200 bg-white/85 px-5 py-3 backdrop-blur-md">
-              <div className="flex items-center gap-3">
-                {isMobile && (
-                  <button
-                    onClick={() => setActiveForumId(null)}
-                    title="Kembali ke daftar forum"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                )}
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"
-                  style={{ background: getColor(forums.findIndex(f => f.id === activeForumId)) }}
-                >
-                  {getInitials(activeForum.title)}
-                </div>
-                <div>
-                  <p className="m-0 text-sm font-bold text-slate-800">{activeForum.title}</p>
-                  <p className="m-0 flex items-center gap-1.5 text-xs">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span className="text-slate-500">Online</span>
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleHeaderSearchClick}
-                  title="Cari pesan"
-                  className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
-                    showMessageSearch
-                      ? 'border-blue-200 bg-blue-50 text-blue-600'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                  )}
-                >
-                  <Search size={19} />
-                </button>
-
-                <div data-headermenu="true" className="relative">
-                  <button
-                    onClick={() => setShowHeaderMenu(v => !v)}
-                    title="Menu grup"
-                    className={cn(
-                      'flex h-10 w-10 items-center justify-center rounded-lg border text-slate-500 transition-all duration-200',
-                      showHeaderMenu
-                        ? 'border-blue-200 bg-blue-50 text-blue-600'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                    )}
-                  >
-                    <MoreVertical size={19} />
-                  </button>
-
-                  {showHeaderMenu && (
-                    <div style={{ position: 'absolute', top: 40, right: 0, width: 220, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
-                      {[
-                        { key: 'info', label: 'Grup Info', icon: Info, onClick: () => { setShowDirectory(true); setShowHeaderMenu(false); } },
-                        { key: 'share-link', label: 'Share link', icon: Link2, onClick: handleShareForumLink },
-                        { key: 'favorite', label: isActiveForumFavorite ? 'Remove from favorites' : 'Add to favorites', icon: Star, onClick: () => { if (activeForumId) toggleFavoriteForum(activeForumId); setShowHeaderMenu(false); } },
-                        { key: 'clear', label: 'Clear chat', icon: Eraser, onClick: handleClearChat, danger: user?.role !== 'admin' },
-                        { key: 'exit', label: 'Exit group', icon: LogOut, onClick: handleExitGroup, danger: true },
-                      ].map(({ key, label, icon: Icon, onClick, danger }) => (
-                        <button
-                          key={key}
-                          onClick={onClick}
-                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13, color: danger ? '#DC2626' : '#374151', textAlign: 'left' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                        >
-                          <Icon size={14} /> {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <ChatHeader
+              isMobile={isMobile}
+              activeForum={activeForum}
+              activeForumId={activeForumId}
+              setActiveForumId={setActiveForumId}
+              forums={forums}
+              handleHeaderSearchClick={handleHeaderSearchClick}
+              showMessageSearch={showMessageSearch}
+              showHeaderMenu={showHeaderMenu}
+              setShowHeaderMenu={setShowHeaderMenu}
+              handleShareForumLink={handleShareForumLink}
+              isActiveForumFavorite={isActiveForumFavorite}
+              toggleFavoriteForum={toggleFavoriteForum}
+              handleClearChat={handleClearChat}
+              handleExitGroup={handleExitGroup}
+              handleGoDashboard={handleGoDashboard}
+              handleOpenSettings={handleOpenSettings}
+              handleOpenJoinModal={handleOpenJoinModal}
+              handleOpenFaq={handleOpenFaq}
+              handleLogout={handleLogout}
+            />
 
             {showMessageSearch && (
               <div style={{ padding: '10px 20px', background: '#fff', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1296,642 +1257,115 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Pinned bar */}
-            {pinnedMessages.length > 0 && (
-              <div style={{ padding: '7px 20px', background: '#EFF6FF', borderBottom: '1px solid #DBEAFE', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1D4ED8' }}>
-                <Pin size={12} />
-                <span style={{ fontWeight: 600 }}>Pinned:</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                  {getPinnedPreviewText(latestPinnedMessage)}
-                </span>
-                <div data-pinnedmenu="true" style={{ position: 'relative', flexShrink: 0 }}>
-                  <button
-                    onClick={() => setShowPinnedMenu(v => !v)}
-                    title="Menu pesan pin"
-                    style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #BFDBFE', background: '#fff', cursor: 'pointer', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <ChevronDown size={14} />
-                  </button>
+            <MessageList
+              messages={messages}
+              loadingMsgs={loadingMsgs}
+              user={user}
+              messageRefs={messageRefs}
+              messageBubbleRefs={messageBubbleRefs}
+              messageReactionRefs={messageReactionRefs}
+              messagesEndRef={messagesEndRef}
+              emojiPickerRef={emojiPickerRef}
+              hoveredMsgId={hoveredMsgId}
+              setHoveredMsgId={setHoveredMsgId}
+              openDropdownId={openDropdownId}
+              dropdownCoords={dropdownCoords}
+              selectionMode={selectionMode}
+              selectedMessageIds={selectedMessageIds}
+              setSelectedMessageIds={setSelectedMessageIds}
+              showPinnedMenu={showPinnedMenu}
+              setShowPinnedMenu={setShowPinnedMenu}
+              jumpedMessageId={jumpedMessageId}
+              openReactionPickerFor={openReactionPickerFor}
+              reactionPickerPos={reactionPickerPos}
+              reactionPickerMainEmojis={reactionPickerMainEmojis}
+              reactionPickerShowExtended={reactionPickerShowExtended}
+              setReactionPickerShowExtended={setReactionPickerShowExtended}
+              setOpenReactionPickerFor={setOpenReactionPickerFor}
+              setReactionPickerPos={setReactionPickerPos}
+              openReactionUsersFor={openReactionUsersFor}
+              setOpenReactionUsersFor={setOpenReactionUsersFor}
+              normalizedMessageSearch={normalizedMessageSearch}
+              activeSearchMatchId={activeSearchMatchId}
+              formatMessageGroupLabel={formatMessageGroupLabel}
+              getJakartaDateKey={getJakartaDateKey}
+              parseUtcDate={parseUtcDate}
+              isImageAttachment={isImageAttachment}
+              getFileLabel={getFileLabel}
+              getFileInfo={getFileInfo}
+              formatTime={formatTime}
+              getRoleLabel={getRoleLabel}
+              getRoleColor={getRoleColor}
+              getPinnedPreviewText={getPinnedPreviewText}
+              getReplyPreviewData={getReplyPreviewData}
+              isTaggedForCurrentUser={isTaggedForCurrentUser}
+              isReplyToCurrentUser={isReplyToCurrentUser}
+              handleGoToMessage={handleGoToMessage}
+              handleGoToReplyMessage={handleGoToReplyMessage}
+              handleToggleReaction={handleToggleReaction}
+              handleSelectPickerEmoji={handleSelectPickerEmoji}
+              handleCopyMessage={handleCopyMessage}
+              handleReply={handleReply}
+              handlePin={handlePin}
+              handleDelete={handleDelete}
+              handleEditMessage={handleEditMessage}
+              handleOpenEditEvent={handleOpenEditEvent}
+              handleOpenViewEvent={handleOpenViewEvent}
+              openReactionPickerAtMessage={openReactionPickerAtMessage}
+              handleToggleDropdown={handleToggleDropdown}
+              handleTouchStart={handleTouchStart}
+              handleTouchEnd={handleTouchEnd}
+              handleDeleteSelectedMessages={handleDeleteSelectedMessages}
+              handleExitSelectionMode={handleExitSelectionMode}
+              closeDropdowns={closeDropdowns}
+              canPin={canPin}
+              canDelete={canDelete}
+              canEdit={canEdit}
+              baseUrl={BASE_URL}
+            />
 
-                  {showPinnedMenu && latestPinnedMessage && (
-                    <div style={{ position: 'absolute', top: 30, right: 0, width: 178, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.15)', padding: 6, zIndex: 210 }}>
-                      <button
-                        onClick={() => handleGoToMessage(latestPinnedMessage)}
-                        style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#374151', textAlign: 'left' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                      >
-                        <Link2 size={14} /> Pergi ke pesan
-                      </button>
-                      {canPin() && (
-                        <button
-                          onClick={() => handlePin(latestPinnedMessage)}
-                          style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#DC2626', textAlign: 'left' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                        >
-                          <PinOff size={14} /> Lepas pin
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {selectionMode && (
-              <div style={{ padding: '8px 20px', background: '#EEF2FF', borderBottom: '1px solid #DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#1E40AF' }}>{selectedMessageIds.length} pesan dipilih</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={handleDeleteSelectedMessages}
-                    disabled={selectedMessageIds.length === 0}
-                    style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: selectedMessageIds.length === 0 ? '#BFDBFE' : '#2563EB', color: '#fff', fontSize: 12, cursor: selectedMessageIds.length === 0 ? 'not-allowed' : 'pointer' }}
-                  >
-                    Hapus Terpilih
-                  </button>
-                  <button
-                    onClick={() => { setSelectionMode(false); setSelectedMessageIds([]); }}
-                    style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #C7D2FE', background: '#fff', color: '#4F46E5', fontSize: 12, cursor: 'pointer' }}
-                  >
-                    Selesai
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Messages */}
-            <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4">
-              {loadingMsgs && <div className="p-4 text-center text-[13px] text-slate-400">Memuat pesan...</div>}
-              {!loadingMsgs && messages.length === 0 && (
-                <div className="p-8 text-center text-[13px] text-slate-400">
-                  Belum ada pesan. Mulai percakapan!
-                </div>
-              )}
-
-              {messages.map((msg, i) => {
-                const isMe = msg.user_id === user?.id;
-                const isHighlightedForMe = isTaggedForCurrentUser(msg) || isReplyToCurrentUser(msg);
-                const isImageMessage = isImageAttachment(msg.file_name || '', msg.file_type || '');
-                const replyPreview = getReplyPreviewData(msg);
-                const prevMsg = messages[i - 1];
-                const currentDateKey = getJakartaDateKey(parseUtcDate(msg.created_at) || new Date(0));
-                const previousDateKey = prevMsg ? getJakartaDateKey(parseUtcDate(prevMsg.created_at) || new Date(0)) : null;
-                const showDateSeparator = i === 0 || currentDateKey !== previousDateKey;
-                const showSender = !isMe && (i === 0 || prevMsg?.user_id !== msg.user_id);
-                const isHovered = hoveredMsgId === msg.id;
-                const isOpen = openDropdownId === msg.id;
-                const isSelected = selectedMessageIds.includes(msg.id);
-                const textPayload = `${msg.content || ''} ${msg.file_name || ''}`.toLowerCase();
-                const matchesQuery = normalizedMessageSearch && textPayload.includes(normalizedMessageSearch);
-                const isActiveMatch = activeSearchMatchId === msg.id;
-                const isJumpedTarget = jumpedMessageId === msg.id;
-                const showCtrl = !selectionMode && (isHovered || isOpen);
-
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && (
-                      <div className="my-2.5 flex justify-center">
-                        <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-                          {formatMessageGroupLabel(msg.created_at)}
-                        </span>
-                      </div>
-                    )}
-
-                    <div
-                      ref={(node) => { if (node) messageRefs.current[msg.id] = node; }}
-                      onMouseEnter={() => setHoveredMsgId(msg.id)}
-                      onMouseLeave={() => setHoveredMsgId(null)}
-                      onTouchStart={e => handleTouchStart(e, msg)}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchMove={handleTouchEnd}
-                      onClick={() => {
-                        if (!selectionMode) return;
-                        setSelectedMessageIds(prev => (
-                          prev.includes(msg.id) ? prev.filter(id => id !== msg.id) : [...prev, msg.id]
-                        ));
-                      }}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-xl transition-all duration-200',
-                        isMe ? 'justify-end' : 'justify-start',
-                        i > 0 && prevMsg?.user_id !== msg.user_id ? 'mt-3.5' : 'mt-0.5',
-                        selectionMode ? 'cursor-pointer px-1.5 py-0.5' : 'cursor-default',
-                        selectionMode && isSelected ? 'bg-indigo-100' : '',
-                        isActiveMatch || isJumpedTarget ? 'ring-2 ring-blue-300' : ''
-                      )}
-                    >
-                    {/* Dropdown trigger — left of MY bubble */}
-                    {!selectionMode && isMe && (
-                      <div
-                        data-msgdropdown="true"
-                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
-                      >
-                        <button
-                          onClick={(e) => handleToggleDropdown(e, msg.id, true)}
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
-                        >
-                          <ChevronDown size={13} />
-                        </button>
-                        {isOpen && (
-                          renderDropdown(msg, dropdownCoords)
-                        )}
-                      </div>
-                    )}
-
-                    {/* Avatar for others */}
-                    {!isMe && (
-                      <div
-                        className={cn(
-                          'mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center rounded-full text-[10px] font-bold text-blue-600',
-                          showSender ? 'visible bg-blue-50' : 'invisible bg-transparent'
-                        )}
-                      >
-                        {showSender ? getInitials(msg.username) : ''}
-                      </div>
-                    )}
-
-                    {/* Bubble */}
-                    <div className="max-w-[72%] md:max-w-[62%]">
-                      {showSender && (
-                        <div className="mb-1 pl-0.5">
-                          <div className="text-[13px] font-semibold text-slate-800">
-                            {msg.username}
-                          </div>
-                          <div className="mt-0.5 text-[11px] font-semibold" style={{ color: getRoleColor(msg.role) }}>
-                            {getRoleLabel(msg.role)}
-                          </div>
-                        </div>
-                      )}
-
-                      <div
-                        className={cn(
-                          'break-words text-sm leading-relaxed shadow-sm',
-                          'rounded-2xl',
-                          msg.is_event
-                            ? (isMe ? 'rounded-br-md bg-[#dcf8c6] text-slate-800' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800')
-                            : (isMe ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md border border-slate-100 bg-white text-slate-800'),
-                          !isMe && isHighlightedForMe && !msg.is_event ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : '',
-                          msg.is_event ? 'min-w-[260px]' : msg.file_url ? (isImageMessage ? 'p-2' : 'min-w-[210px] px-3 py-2.5') : 'px-3.5 py-2.5',
-                          isActiveMatch ? 'ring-2 ring-blue-300' : '',
-                          !isActiveMatch && matchesQuery ? 'ring-1 ring-blue-200' : ''
-                        )}
-                      >
-                        {replyPreview && !msg.is_event && (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => handleGoToReplyMessage(msg)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleGoToReplyMessage(msg);
-                              }
-                            }}
-                            className={cn(
-                              'mb-2 flex items-center gap-2 rounded-lg border-l-4 px-2.5 py-1.5 text-xs leading-snug transition-all duration-200',
-                              'cursor-pointer hover:opacity-90',
-                              isMe
-                                ? 'border-white/50 bg-white/15 text-white/95'
-                                : 'border-blue-600 bg-slate-100 text-slate-500'
-                            )}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className={cn('font-bold', isMe ? 'text-white/95' : 'text-slate-600')}>
-                                {replyPreview.username}
-                              </div>
-                              <div className={cn('truncate', isMe ? 'text-white/90' : 'text-slate-500')}>
-                                {replyPreview.content}
-                              </div>
-                            </div>
-                            {replyPreview.isImage && replyPreview.fileUrl && (
-                              <img
-                                src={`${BASE_URL}${replyPreview.fileUrl}`}
-                                alt={replyPreview.fileName || 'Reply image'}
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 8,
-                                  objectFit: 'cover',
-                                  flexShrink: 0,
-                                  background: isMe ? 'rgba(255,255,255,0.18)' : '#E5E7EB',
-                                }}
-                              />
-                            )}
-                          </div>
-                        )}
-                        {!!msg.is_pinned && !msg.is_event && (
-                          <div className={cn('mb-1 flex items-center gap-1 text-[10px]', isMe ? 'text-white/70' : 'text-blue-600')}>
-                            <Pin size={9} /> Pinned
-                          </div>
-                        )}
-
-                        {!!msg.is_event ? (
-                          <div className="flex flex-col">
-                            <div className="px-3.5 pt-3 pb-2">
-                              <div className="flex items-start gap-3">
-                                <div className="mt-0.5 bg-[#c8e6b2] p-2 rounded-lg text-[#075e54] flex-shrink-0">
-                                  <Calendar size={20} />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="font-bold text-[15px] leading-tight text-slate-800">{msg.event_name}</div>
-                                  <div className="text-[13px] text-slate-600 mt-1">
-                                    {new Date(msg.event_start_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                    {msg.event_end_at ? ` - ${new Date(msg.event_end_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : ''}
-                                  </div>
-                                  {msg.event_location && <div className="text-[13px] text-slate-600">{msg.event_location}</div>}
-                                  {msg.event_description && <div className="text-[12px] mt-1 text-slate-500 italic line-clamp-2">{msg.event_description}</div>}
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="border-t border-black/5 flex flex-col">
-                              {msg.event_call_link && (
-                                <a href={msg.event_call_link} target="_blank" rel="noreferrer" className="text-center text-[14px] font-semibold py-2.5 text-[#075e54] hover:bg-black/5 transition-colors no-underline border-b border-black/5 block">
-                                  Join Call
-                                </a>
-                              )}
-                              {(() => {
-                                const canEditEvent = user?.role === 'admin' || msg.user_id === user?.id;
-                                return canEditEvent ? (
-                                  <button
-                                    className="text-center text-[14px] font-semibold py-2.5 text-[#075e54] hover:bg-black/5 transition-colors cursor-pointer w-full border-none bg-transparent rounded-b-2xl"
-                                    onClick={() => setEditingEvent(msg)}
-                                  >
-                                    Edit event
-                                  </button>
-                                ) : (
-                                  <button
-                                    className="text-center text-[14px] font-semibold py-2.5 text-[#128C7E] hover:bg-black/5 transition-colors cursor-pointer w-full border-none bg-transparent rounded-b-2xl"
-                                    onClick={() => setViewingEvent(msg)}
-                                  >
-                                    Lihat detail
-                                  </button>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        ) : msg.file_url ? (
-                          <div>
-                            {isImageMessage ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 220 }}>
-                                <a
-                                  href={`${BASE_URL}${msg.file_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{ textDecoration: 'none', display: 'block' }}
-                                >
-                                  <img
-                                    src={`${BASE_URL}${msg.file_url}`}
-                                    alt={msg.file_name || 'Gambar'}
-                                    style={{
-                                      width: '100%',
-                                      aspectRatio: '1 / 1',
-                                      objectFit: 'cover',
-                                      borderRadius: 12,
-                                      display: 'block',
-                                      background: isMe ? 'rgba(255,255,255,0.18)' : '#F3F4F6',
-                                    }}
-                                  />
-                                </a>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                                    <ImageIcon size={14} color={isMe ? '#E0E7FF' : '#6B7280'} />
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: isMe ? '#fff' : '#374151' }}>
-                                      {getFileLabel(msg.file_name || '', msg.file_type || '')}
-                                    </span>
-                                    {msg.file_size ? (
-                                      <span style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.68)' : '#9CA3AF' }}>
-                                        · {(msg.file_size / 1024).toFixed(0)} KB
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <a
-                                    href={`${BASE_URL}/api/messages/download/${msg.id}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    style={{
-                                      width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                                      background: isMe ? 'rgba(255,255,255,0.2)' : '#F3F4F6',
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      color: isMe ? '#fff' : '#6B7280',
-                                      textDecoration: 'none',
-                                    }}
-                                  >
-                                    <Download size={14} />
-                                  </a>
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{
-                                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                                  background: isMe ? 'rgba(255,255,255,0.18)' : getFileInfo(msg.file_name || '').bg,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {(() => { const { Icon, color } = getFileInfo(msg.file_name || ''); return <Icon size={20} color={isMe ? '#fff' : color} />; })()}
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                  <div style={{
-                                    fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    color: isMe ? '#fff' : '#1F2937',
-                                  }}>
-                                    {msg.file_name}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: isMe ? 'rgba(255,255,255,0.65)' : '#9CA3AF', marginTop: 2 }}>
-                                    {getFileInfo(msg.file_name || '').label}
-                                    {msg.file_size ? ` · ${(msg.file_size / 1024).toFixed(0)} KB` : ''}
-                                  </div>
-                                </div>
-                                <a
-                                  href={`${BASE_URL}/api/messages/download/${msg.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{
-                                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                                    background: isMe ? 'rgba(255,255,255,0.2)' : '#F3F4F6',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: isMe ? '#fff' : '#6B7280',
-                                    textDecoration: 'none',
-                                  }}
-                                >
-                                  <Download size={14} />
-                                </a>
-                              </div>
-                            )}
-                        {msg.content && !msg.is_event && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
-                      </div>
-                    ) : (
-                      !msg.is_event && renderMentions(msg.content)
-                    )}
-
-                    <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px] px-2 pb-1', 
-                      msg.is_event ? 'text-slate-500' : (isMe ? 'text-white/65' : 'text-slate-400')
-                    )}>
-                      {!!msg.edited_at && <span>diedit</span>}
-                      {formatTime(msg.created_at)}
-                      {isMe && <CheckCheck size={12} />}
-                    </div>
-                  </div>
-                </div>
-
-                    {/* Dropdown trigger — right of OTHERS bubble */}
-                    {!selectionMode && !isMe && (
-                      <div
-                        data-msgdropdown="true"
-                        className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
-                      >
-                        <button
-                          onClick={(e) => handleToggleDropdown(e, msg.id, false)}
-                          className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
-                        >
-                          <ChevronDown size={13} />
-                        </button>
-                        {isOpen && (
-                          renderDropdown(msg, dropdownCoords)
-                        )}
-                      </div>
-                    )}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="border-t border-slate-200 bg-white/90 px-4 pb-4 pt-3 backdrop-blur-sm md:px-5">
-              {replyTo && (
-                <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <CornerUpLeft size={13} color="#2563EB" />
-                  <div className="flex-1">
-                    <div className="text-[11px] font-semibold text-blue-600">{replyTo.username}</div>
-                    <div className="truncate text-xs text-slate-500">{replyTo.content}</div>
-                  </div>
-                  <button onClick={() => setReplyTo(null)} className="border-0 bg-transparent text-slate-400 transition-all duration-200 hover:text-slate-600">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              <form
-                onSubmit={handleSend}
-                className={cn(
-                  'relative flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
-                  isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-2'
-                )}
-              >
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowAttach(!showAttach)}
-                    className={cn(
-                      'flex items-center justify-center rounded-full border-0 bg-slate-100 text-slate-500 transition-all duration-200 hover:bg-slate-200',
-                      isMobile ? 'h-8 w-8' : 'h-9 w-9'
-                    )}
-                  >
-                    <Paperclip size={isMobile ? 15 : 16} />
-                  </button>
-                  {showAttach && (
-                    <div className="absolute bottom-11 left-0 z-50 flex min-w-[170px] flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-                      {[
-                        ['Dokumen', FileText, '#2563EB', () => fileInputRef.current?.click()],
-                        ['Gambar', ImageIcon, '#7c3aed', () => fileInputRef.current?.click()],
-                        ['Event', Calendar, '#f43f5e', () => { setShowAttach(false); setShowEventModal(true); }]
-                      ].map(([label, Icon, color, onClick]) => (
-                        <button
-                          key={label} type="button"
-                          onClick={onClick}
-                          className="flex items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2 text-[13px] whitespace-nowrap text-slate-700 transition-all duration-200 hover:bg-slate-100"
-                        >
-                          <Icon size={15} color={color} /> {label === 'Event' ? 'Buat' : 'Upload'} {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
-
-                <div className="min-w-0 flex-1">
-                  <input
-                    ref={messageInputRef}
-                    value={inputText}
-                    onChange={e => setInputText(e.target.value)}
-                    onClick={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
-                    onKeyUp={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
-                    onSelect={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
-                    onKeyDown={(e) => handleMessageInputKeyDown(e, mentionSuggestions, mentionMeta)}
-                    placeholder="Ketik pesan..."
-                    className={cn(
-                      'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
-                      isMobile ? 'h-9 px-3 text-[13px]' : 'h-10 px-4 text-sm'
-                    )}
-                  />
-                </div>
-
-                {mentionMeta && mentionSuggestions.length > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: isMobile ? 54 : 60,
-                      right: isMobile ? 46 : 52,
-                      bottom: isMobile ? 44 : 48,
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                      zIndex: 70,
-                      background: '#fff',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: 12,
-                      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.18)',
-                      padding: 6,
-                    }}
-                  >
-                    {mentionSuggestions.map((member, idx) => {
-                      const isActive = idx === mentionActiveIndex;
-                      return (
-                        <button
-                          key={member.id}
-                          type="button"
-                          onClick={() => handleSelectMention(member.username, mentionMeta)}
-                          style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 10,
-                            padding: '8px 10px',
-                            border: 'none',
-                            borderRadius: 8,
-                            background: isActive ? '#EFF6FF' : 'transparent',
-                            color: '#1F2937',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span style={{ fontSize: 13, fontWeight: 600 }}>@{member.username}</span>
-                          <span style={{ fontSize: 11, color: '#64748B' }}>{getRoleLabel(member.role)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={!inputText.trim()}
-                  className={cn(
-                    'flex shrink-0 items-center justify-center rounded-full border-0 transition-all duration-200',
-                    isMobile ? 'h-8 w-8' : 'h-9 w-9',
-                    inputText.trim()
-                      ? 'cursor-pointer bg-blue-600 text-white hover:bg-blue-700'
-                      : 'cursor-not-allowed bg-slate-200 text-slate-400'
-                  )}
-                >
-                  <Send size={isMobile ? 14 : 15} />
-                </button>
-              </form>
-            </div>
+            <ChatInput
+              isMobile={isMobile}
+              inputText={inputText}
+              setInputText={setInputText}
+              handleSend={handleSend}
+              handleMessageInputKeyDown={handleMessageInputKeyDown}
+              mentionMeta={mentionMeta}
+              mentionSuggestions={mentionSuggestions}
+              mentionActiveIndex={mentionActiveIndex}
+              handleSelectMention={handleSelectMention}
+              caretPosition={caretPosition}
+              setCaretPosition={setCaretPosition}
+              replyTo={replyTo}
+              setReplyTo={setReplyTo}
+              showAttach={showAttach}
+              toggleAttachMenu={toggleAttachMenu}
+              setShowAttach={setShowAttach}
+              handleFileUpload={handleFileUpload}
+              openEmojiPickerAtNode={openEmojiPickerAtNode}
+              fileInputRef={fileInputRef}
+              messageInputRef={messageInputRef}
+              emojiButtonRef={emojiButtonRef}
+              setShowEventModal={setShowEventModal}
+            />
           </div>
         ))}
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
-          <div style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Directory</span>
-              <button
-                onClick={() => setShowDirectory(false)}
-                title="Tutup directory"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 0 16px' }}>
-              {/* Team Members */}
-              <div style={{ padding: '0 16px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                  <Users size={14} color="#6B7280" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Team Members</span>
-                  <span style={{ background: '#F3F4F6', color: '#6B7280', fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10 }}>
-                    {forumMembers.length}
-                  </span>
-                </div>
-                {forumMembers.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '6px 0' }}>Belum ada anggota.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {forumMembers.map(member => (
-                      <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                          {getInitials(member.username)}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {member.username}
-                            {member.id === user?.id && (
-                              <span style={{ fontSize: 10, fontWeight: 600, color: '#6366F1', background: '#EEF2FF', borderRadius: 6, padding: '1px 6px' }}>Anda</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 11, color: getRoleColor(member.role) }}>{getRoleLabel(member.role)}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ height: 1, background: '#F3F4F6', margin: '12px 0' }} />
-
-              {/* Files */}
-              <div style={{ padding: '0 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                  <FileText size={14} color="#6B7280" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Files</span>
-                  <span style={{ background: '#F3F4F6', color: '#6B7280', fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10 }}>
-                    {sharedFiles.length}
-                  </span>
-                </div>
-                {sharedFiles.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '6px 0' }}>
-                    Belum ada file yang dibagikan.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[...sharedFiles].reverse().slice(0, 20).map(file => {
-                      const { Icon, color, bg, label } = getFileInfo(file.file_name || '');
-                      return (
-                        <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon size={16} color={color} />
-                          </div>
-                          <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: '#1F2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.file_name}</div>
-                            <div style={{ fontSize: 11, color: '#9CA3AF' }}>
-                              {label}{file.file_size ? ` · ${(file.file_size / 1024).toFixed(0)} KB` : ''}
-                            </div>
-                          </div>
-                          <a
-                            href={`${BASE_URL}/api/messages/download/${file.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', flexShrink: 0 }}
-                          >
-                            <Download size={14} />
-                          </a>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <DirectoryPanel
+            activeForum={activeForum}
+            forumMembers={forumMembers}
+            user={user}
+            getInitials={getInitials}
+            getRoleColor={getRoleColor}
+            getRoleLabel={getRoleLabel}
+            getColor={getColor}
+            sharedFiles={sharedFiles}
+            getFileInfo={getFileInfo}
+            setShowDirectory={setShowDirectory}
+            baseUrl={BASE_URL}
+          />
         )}
       </div>
 
@@ -1973,75 +1407,16 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* FAQ Modal */}
-      {showFaqModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={e => { if (e.target === e.currentTarget) setShowFaqModal(false); }}
-        >
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 8 }}><HelpCircle size={18} color="#2563EB" /></div>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>FAQ</h2>
-              </div>
-              <button onClick={() => setShowFaqModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
-            </div>
+      {showFaqModal && <FaqModal onClose={() => setShowFaqModal(false)} />}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13, color: '#4B5563' }}>
-              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                <strong style={{ color: '#1F2937' }}>Bagaimana cara gabung forum?</strong>
-                <p style={{ margin: '6px 0 0' }}>Buka menu titik tiga, pilih Gabung Forum, lalu paste link atau token dari admin.</p>
-              </div>
-              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                <strong style={{ color: '#1F2937' }}>Bagaimana edit profil?</strong>
-                <p style={{ margin: '6px 0 0' }}>Buka menu titik tiga lalu pilih Profile untuk mengubah data akun.</p>
-              </div>
-              <div style={{ padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                <strong style={{ color: '#1F2937' }}>Di mana pengaturan akun?</strong>
-                <p style={{ margin: '6px 0 0' }}>Pilih Settings pada menu titik tiga untuk membuka halaman pengaturan.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Join Forum Modal */}
       {showJoinModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={e => { if (e.target === e.currentTarget) { setShowJoinModal(false); setJoinLink(''); } }}
-        >
-          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: '#eff6ff', borderRadius: 10, padding: 8 }}><Link2 size={18} color="#2563EB" /></div>
-                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1F2937', margin: 0 }}>Gabung Forum</h2>
-              </div>
-              <button onClick={() => { setShowJoinModal(false); setJoinLink(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
-            </div>
-            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Paste link atau token yang dikirim admin untuk bergabung ke forum chat.</p>
-            <form onSubmit={handleJoinForum}>
-              <input
-                value={joinLink}
-                onChange={e => setJoinLink(e.target.value)}
-                placeholder="Contoh: http://localhost:5173/chat/join/ab12cd34ef"
-                autoFocus
-                style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }}
-                onFocus={e => e.target.style.borderColor = '#2563EB'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" onClick={() => { setShowJoinModal(false); setJoinLink(''); }}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, cursor: 'pointer' }}
-                >Batal</button>
-                <button type="submit" disabled={joinLoading || !joinLink.trim()}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: joinLoading || !joinLink.trim() ? '#93c5fd' : 'linear-gradient(135deg, #1D4ED8, #2563EB)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: joinLoading || !joinLink.trim() ? 'not-allowed' : 'pointer' }}
-                >{joinLoading ? 'Bergabung...' : 'Gabung'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <JoinModal
+          joinLink={joinLink}
+          setJoinLink={setJoinLink}
+          joinLoading={joinLoading}
+          onSubmit={handleJoinForum}
+          onClose={() => { setShowJoinModal(false); setJoinLink(''); }}
+        />
       )}
 
       {/* Create Event Modal */}
@@ -2063,122 +1438,7 @@ export default function ChatPage() {
         />
       )}
 
-      {/* View Event Modal */}
-      {viewingEvent && (
-        <div
-          style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(15, 23, 42, 0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, padding: 16,
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) setViewingEvent(null); }}
-        >
-          <div style={{
-            background: '#fff',
-            borderRadius: 18,
-            width: '100%',
-            maxWidth: 420,
-            boxShadow: '0 24px 64px rgba(15, 23, 42, 0.22)',
-            overflow: 'hidden',
-          }}>
-            {/* Header */}
-            <div style={{
-              padding: '18px 20px 14px',
-              borderBottom: '1px solid #F3F4F6',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: 'linear-gradient(135deg, #059669, #047857)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Calendar size={18} color="#fff" />
-                </div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0 }}>Detail Event</h2>
-              </div>
-              <button
-                onClick={() => setViewingEvent(null)}
-                style={{
-                  background: '#F3F4F6', border: 'none', cursor: 'pointer',
-                  width: 30, height: 30, borderRadius: 8,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#6B7280',
-                }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div style={{ padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Event Name */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Nama Event</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>{viewingEvent.event_name}</div>
-              </div>
-
-              {/* Date & Time */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Waktu</div>
-                <div style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={13} color="#6B7280" />
-                  {new Date(viewingEvent.event_start_at).toLocaleString('id-ID', {
-                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
-                  })}
-                  {viewingEvent.event_end_at && (
-                    <span style={{ color: '#6B7280' }}>
-                      {' – '}
-                      {new Date(viewingEvent.event_end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Location */}
-              {viewingEvent.event_location && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Lokasi</div>
-                  <div style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <MapPin size={13} color="#6B7280" />
-                    {viewingEvent.event_location}
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              {viewingEvent.event_description && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Deskripsi</div>
-                  <div style={{
-                    fontSize: 13, color: '#374151', lineHeight: 1.6,
-                    background: '#F9FAFB', borderRadius: 8, padding: '10px 12px',
-                    border: '1px solid #E5E7EB',
-                  }}>
-                    {viewingEvent.event_description}
-                  </div>
-                </div>
-              )}
-
-              {/* Close button */}
-              <button
-                onClick={() => setViewingEvent(null)}
-                style={{
-                  padding: '11px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB',
-                  background: '#fff', color: '#6B7280',
-                  fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                  marginTop: 4,
-                }}
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {viewingEvent && <ViewEventModal viewingEvent={viewingEvent} onClose={() => setViewingEvent(null)} />}
     </DashboardLayout>
   );
 }

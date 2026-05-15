@@ -99,6 +99,8 @@ export default function ChatPage() {
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [openReactionPickerFor, setOpenReactionPickerFor] = useState(null);
   const [openReactionUsersFor, setOpenReactionUsersFor] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [reactionPickerPos, setReactionPickerPos] = useState(null);
   const [reactionPickerMainEmojis, setReactionPickerMainEmojis] = useState([]);
@@ -865,35 +867,70 @@ export default function ChatPage() {
   };
 
   const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
-  const canEdit = msg => (user?.role === 'admin' || msg.user_id === user?.id) && !msg.file_url;
+  const canEdit = (msg) => {
+    if (!msg) return false;
+    if (msg.file_url) return false;
+    if (user?.role === 'admin') return true;
+    if (msg.user_id !== user?.id) return false;
+    try {
+      const created = new Date(msg.created_at).getTime();
+      const now = Date.now();
+      const diff = now - created;
+      const FIFTEEN_MIN = 15 * 60 * 1000;
+      return diff <= FIFTEEN_MIN;
+    } catch {
+      return false;
+    }
+  };
   const canPin = () => user?.role === 'admin';
 
   const handleEditMessage = (msg) => {
     messageInputRef.current?.blur();
     if (!canEdit(msg)) return;
+    setEditingMessageId(msg.id);
+    setEditingText(msg.content || '');
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-editarea="${msg.id}"] textarea`);
+      if (el) el.focus();
+    }, 0);
+  };
 
-    const nextText = window.prompt('Edit pesan:', msg.content || '');
-    if (nextText === null) return;
-
-    const trimmed = nextText.trim();
-    if (!trimmed) {
+  const handleSaveEdit = async (msgId) => {
+    const trimmed = (editingText || '').trim();
+    const orig = messages.find(m => m.id === msgId)?.content || '';
+    if (trimmed === '') {
       addToast('Pesan tidak boleh kosong.', 'error');
       return;
     }
-    if (trimmed === (msg.content || '').trim()) {
-      setOpenDropdownId(null);
-      setMobileMenu(null);
+    if (trimmed === (orig || '').trim()) {
+      setEditingMessageId(null);
+      setEditingText('');
       return;
     }
 
-    socketRef.current?.emit('edit_message', {
-      messageId: msg.id,
-      forumId: activeForumId,
-      content: trimmed,
-    });
+    try {
+      // optimistic close; server broadcasts updated message via socket
+      socketRef.current?.emit('edit_message', {
+        messageId: msgId,
+        forumId: activeForumId,
+        content: trimmed,
+      }, (res) => {
+        if (res && res.error) {
+          addToast(res.error || 'Gagal mengedit pesan.', 'error');
+        }
+      });
+      setEditingMessageId(null);
+      setEditingText('');
+    } catch (err) {
+      addToast(err.message || 'Gagal mengedit pesan.', 'error');
+    }
+  };
 
-    setOpenDropdownId(null);
-    setMobileMenu(null);
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText('');
   };
   const getReplyPreviewData = (msg) => {
     if (!msg.reply_to_id) return null;
@@ -1096,6 +1133,16 @@ export default function ChatPage() {
     setShowQuickMenu(false);
   };
 
+  const handleOpenGroupInfo = () => {
+    if (!activeForumId) return;
+    setShowDirectory(true);
+    // refresh members when opening
+    api.get(`/forums/${activeForumId}/members`)
+      .then(data => setForumMembers(data))
+      .catch(() => setForumMembers([]));
+    setShowHeaderMenu(false);
+  };
+
   const handleOpenJoinModal = () => {
     setShowJoinModal(true);
     setShowQuickMenu(false);
@@ -1226,6 +1273,7 @@ export default function ChatPage() {
               handleOpenSettings={handleOpenSettings}
               handleOpenJoinModal={handleOpenJoinModal}
               handleOpenFaq={handleOpenFaq}
+              handleOpenGroupInfo={handleOpenGroupInfo}
               handleLogout={handleLogout}
             />
 
@@ -1309,6 +1357,11 @@ export default function ChatPage() {
               handlePin={handlePin}
               handleDelete={handleDelete}
               handleEditMessage={handleEditMessage}
+              editingMessageId={editingMessageId}
+              editingText={editingText}
+              setEditingText={setEditingText}
+              handleSaveEdit={handleSaveEdit}
+              handleCancelEdit={handleCancelEdit}
               handleOpenEditEvent={handleOpenEditEvent}
               handleOpenViewEvent={handleOpenViewEvent}
               openReactionPickerAtMessage={openReactionPickerAtMessage}

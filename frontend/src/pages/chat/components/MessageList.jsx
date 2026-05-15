@@ -67,6 +67,11 @@ export default function MessageList({
   handlePin,
   handleDelete,
   handleEditMessage,
+  editingMessageId,
+  editingText,
+  setEditingText,
+  handleSaveEdit,
+  handleCancelEdit,
   handleOpenEditEvent,
   handleOpenViewEvent,
   openReactionPickerAtMessage,
@@ -466,7 +471,24 @@ export default function MessageList({
                       {msg.content && !msg.is_event && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
                     </div>
                   ) : (
-                    !msg.is_event && renderMentions(msg.content)
+                    !msg.is_event && (
+                      editingMessageId === msg.id ? (
+                        <div data-editarea={msg.id}>
+                          <div style={{ marginBottom: 8 }}>
+                            {/* Inline editor provided by parent via props */}
+                            <textarea
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              style={{ width: '100%', minHeight: 80, padding: 8, borderRadius: 8, resize: 'vertical' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button onClick={() => handleCancelEdit()} style={{ padding: '6px 10px', borderRadius: 8, background: '#fff', border: '1px solid #E5E7EB' }}>Cancel</button>
+                            <button onClick={() => handleSaveEdit(msg.id)} style={{ padding: '6px 10px', borderRadius: 8, background: '#2563EB', color: '#fff' }}>Save</button>
+                          </div>
+                        </div>
+                      ) : renderMentions(msg.content)
+                    )
                   )}
 
                   <div

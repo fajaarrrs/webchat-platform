@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Calendar, ChevronDown, Copy, Download, ImageIcon, Pin, PinOff, Reply, Trash2, CheckCheck, Smile, Pencil, Link2 } from 'lucide-react';
 import ReactionPicker from './ReactionPicker';
 import MessageDropdown from './MessageDropdown';
@@ -88,6 +89,7 @@ export default function MessageList({
   canEdit,
   baseUrl,
 }) {
+  const [hoverUsers, setHoverUsers] = useState(null); // { messageId, emoji, rect }
   const pinnedMessages = messages.filter((m) => m.is_pinned);
   const latestPinnedMessage = pinnedMessages[pinnedMessages.length - 1] || null;
 
@@ -482,7 +484,11 @@ export default function MessageList({
                           </a>
                         </div>
                       )}
-                      {msg.content && !msg.is_event && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
+                      {msg.content && !msg.is_event && (
+                        <div className="mt-2 text-[13px]" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {renderMentions(msg.content)}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     !msg.is_event && (
@@ -543,7 +549,9 @@ export default function MessageList({
                             </button>
                           </div>
                         </div>
-                      ) : renderMentions(msg.content)
+                      ) : (
+                        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMentions(msg.content)}</div>
+                      )
                     )
                   )}
 
@@ -556,55 +564,46 @@ export default function MessageList({
                       return (
                         <div key={r.emoji} style={{ display: 'flex', alignItems: 'center' }}>
                           <button
-                            type="button"
-                            onClick={() => handleToggleReaction(msg.id, r.emoji)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '4px 8px',
-                              borderRadius: 6,
-                              border: '1px solid #2563EB',
-                              background: reactedByMe ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.12)',
-                              color: '#111827',
-                              cursor: 'pointer',
-                              fontSize: 14,
-                              lineHeight: 1,
-                            }}
-                            aria-label={`react-${r.emoji}`}
-                          >
-                            <span style={{ fontSize: 16, lineHeight: 1 }}>{r.emoji}</span>
-                            <span
-                              onClick={(e) => { e.stopPropagation(); setOpenReactionUsersFor({ messageId: msg.id, emoji: r.emoji }); }}
-                              style={{ fontSize: 12, fontWeight: 700, color: '#111827', userSelect: 'none' }}
-                              aria-label={`react-count-${r.emoji}`}
+                              type="button"
+                              onClick={() => {
+                                // Always toggle reaction on click (add/remove). Popup disabled per new UX.
+                                handleToggleReaction(msg.id, r.emoji);
+                              }}
+                              onMouseEnter={(e) => {
+                                try {
+                                  // desktop-only hover detection
+                                  const canHover = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+                                  if (!canHover) return;
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setHoverUsers({ messageId: msg.id, emoji: r.emoji, rect });
+                                } catch (err) {}
+                              }}
+                              onMouseLeave={() => {
+                                setHoverUsers(null);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #2563EB',
+                                background: reactedByMe ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.12)',
+                                color: '#111827',
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                lineHeight: 1,
+                              }}
+                              aria-label={`react-${r.emoji}`}
                             >
-                              {r.count}
-                            </span>
-                          </button>
+                              <span style={{ fontSize: 16, lineHeight: 1 }}>{r.emoji}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827', userSelect: 'none' }} aria-label={`react-count-${r.emoji}`}>{r.count}</span>
+                            </button>
                         </div>
                       );
                     })}
 
-                    {openReactionUsersFor && openReactionUsersFor.messageId === msg.id && (
-                      <div style={{ position: 'absolute', left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)', zIndex: 50, background: '#fff', boxShadow: '0 8px 30px rgba(15,23,42,0.08)', borderRadius: 8, padding: 8, minWidth: 160 }}>
-                        {openReactionUsersFor.emoji ? (
-                          (msg.reacting_users || []).filter((u) => u.emoji === openReactionUsersFor.emoji).map((u) => (
-                            <div key={u.userId} style={{ fontSize: 13, padding: '4px 6px' }}>{u.username}</div>
-                          ))
-                        ) : (
-                          Object.entries((msg.reacting_users || []).reduce((acc, u) => { acc[u.emoji] = acc[u.emoji] || []; acc[u.emoji].push(u); return acc; }, {})).map(([emoji, users]) => (
-                            <div key={emoji} style={{ marginBottom: 6 }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{emoji} <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>{users.length}</span></div>
-                              {users.map((u) => <div key={u.userId} style={{ fontSize: 13, padding: '2px 6px' }}>{u.username}</div>)}
-                            </div>
-                          ))
-                        )}
-                        <div style={{ textAlign: 'right' }}>
-                          <button type="button" onClick={() => setOpenReactionUsersFor(null)} style={{ fontSize: 12, marginTop: 6 }}>Close</button>
-                        </div>
-                      </div>
-                    )}
+                          {/* Reaction users popup disabled per new UX: clicking reaction toggles add/remove and no popup shown */}
                   </div>
 
                   <div className={cn('mt-1 flex items-center justify-end gap-1 text-[10px] px-2 pb-1', msg.is_event ? 'text-slate-500' : (isMe ? 'text-white/65' : 'text-slate-400'))}>
@@ -654,6 +653,73 @@ export default function MessageList({
         );
       })}
       <div ref={messagesEndRef} />
+      {/* Hover tooltip showing users who reacted (desktop only). Appears when hovering a reaction pill. */}
+      {hoverUsers && (() => {
+        try {
+          const message = messages.find(m => m.id === hoverUsers.messageId);
+          if (!message) return null;
+          const users = (message.reacting_users || []).filter(u => u.emoji === hoverUsers.emoji);
+          const rect = hoverUsers.rect || { left: 0, right: 0, top: 0, bottom: 0, width: 0 };
+          const centerX = rect.left + rect.width / 2;
+          const spaceBelow = window.innerHeight - rect.bottom;
+          const popupHeight = Math.min(220, 40 + users.length * 36);
+          const showAbove = spaceBelow < popupHeight + 12 && rect.top > popupHeight + 12;
+          const top = showAbove ? (rect.top - popupHeight - 12) : (rect.bottom + 12);
+
+          // Estimate popup width (clamped between min/max used below) to avoid clipping on right-aligned messages.
+          const popupMinW = 180;
+          const popupMaxW = 320;
+          const estimatedPopupW = Math.min(popupMaxW, Math.max(popupMinW, 220));
+
+          // Clamp centerX so popup won't overflow the viewport; shift left when near right edge.
+          const halfW = estimatedPopupW / 2;
+          const margin = 12;
+          const clampedCenterX = Math.max(halfW + margin, Math.min(centerX, window.innerWidth - halfW - margin));
+
+          const popupStyle = {
+            position: 'fixed',
+            left: clampedCenterX,
+            top,
+            transform: 'translateX(-50%)',
+            zIndex: 800,
+            background: '#fff',
+            borderRadius: 12,
+            padding: '8px 10px',
+            boxShadow: '0 10px 30px rgba(2,6,23,0.12)',
+            minWidth: popupMinW,
+            maxWidth: popupMaxW,
+            maxHeight: 260,
+            overflow: 'auto',
+          };
+
+          return (
+            <div
+              style={popupStyle}
+              onMouseEnter={() => setHoverUsers(hoverUsers)}
+              onMouseLeave={() => setHoverUsers(null)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{ fontSize: 16 }}>{hoverUsers.emoji}</div>
+                <div style={{ fontSize: 13, fontWeight: 400, color: '#0f172a' }}>{users.length} reacted</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {users.length === 0 ? (
+                  <div style={{ color: '#6B7280', fontSize: 13 }}>No reactions</div>
+                ) : users.map(u => (
+                  <div key={u.userId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 999, background: '#E6EEF9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, color: '#1D4ED8' }}>{(u.username || 'U').slice(0,2).toUpperCase()}</div>
+                    <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 400 }}>{u.username}</div>
+                  </div>
+                ))}
+              </div>
+              {/* little caret */}
+              <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: showAbove ? 'none' : '8px solid #fff', borderBottom: showAbove ? '8px solid #fff' : 'none', bottom: showAbove ? -8 : 'auto', top: showAbove ? 'auto' : -8 }} />
+            </div>
+          );
+        } catch (err) {
+          return null;
+        }
+      })()}
       {openReactionPickerFor && reactionPickerPos && (
         <ReactionPicker
           emojiPickerRef={emojiPickerRef}

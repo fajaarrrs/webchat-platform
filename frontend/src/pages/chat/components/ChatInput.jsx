@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { CornerUpLeft, FileText, ImageIcon, Paperclip, Smile, Calendar, Send, X } from 'lucide-react';
 import { cn } from '../chatUtils';
 
@@ -25,6 +26,28 @@ export default function ChatInput({
   emojiButtonRef,
   setShowEventModal,
 }) {
+  useEffect(() => {
+    const el = messageInputRef?.current;
+    if (!el) return;
+    try {
+      el.style.height = 'auto';
+      const computed = window.getComputedStyle(el);
+      const lineHeight = parseFloat(computed.lineHeight) || 20;
+      const paddingTop = parseFloat(computed.paddingTop) || 0;
+      const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+      const borderTop = parseFloat(computed.borderTopWidth) || 0;
+      const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
+      const maxRows = 5;
+      const maxHeight = Math.round(lineHeight * maxRows + paddingTop + paddingBottom + borderTop + borderBottom);
+      if (el.scrollHeight > maxHeight) {
+        el.style.height = `${maxHeight}px`;
+        el.style.overflowY = 'auto';
+      } else {
+        el.style.height = `${el.scrollHeight}px`;
+        el.style.overflowY = 'hidden';
+      }
+    } catch (err) {}
+  }, [inputText, messageInputRef]);
   return (
     <div className="border-t border-slate-200 bg-white/90 px-4 pb-4 pt-3 backdrop-blur-sm md:px-5" style={{ position: 'relative', zIndex: 20 }}>
       {replyTo && (
@@ -43,10 +66,10 @@ export default function ChatInput({
       <form
         onSubmit={handleSend}
         className={cn(
-          'relative flex items-center rounded-full border border-slate-200 bg-white shadow-lg',
+          'relative flex items-center border border-slate-200 bg-white shadow-lg',
           isMobile ? 'gap-1.5 px-2 py-1.5' : 'gap-2 px-2.5 py-1.5'
         )}
-        style={{ alignItems: 'center' }}
+        style={{ alignItems: 'center', borderRadius: 28 }}
       >
         <div className="relative" style={{ display: 'flex', alignItems: 'center' }}>
           <div className={cn('flex items-center', isMobile ? 'h-8' : 'h-9')} style={{ gap: 8, marginRight: 8 }}>
@@ -101,18 +124,41 @@ export default function ChatInput({
         <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileUpload} />
 
         <div className="min-w-0 flex-1">
-          <input
+          <textarea
             ref={messageInputRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => { setInputText(e.target.value); }}
+            onInput={(e) => {
+              try {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                const computed = window.getComputedStyle(el);
+                const lineHeight = parseFloat(computed.lineHeight) || 20;
+                const paddingTop = parseFloat(computed.paddingTop) || 0;
+                const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+                const borderTop = parseFloat(computed.borderTopWidth) || 0;
+                const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
+                const maxRows = 5;
+                const maxHeight = Math.round(lineHeight * maxRows + paddingTop + paddingBottom + borderTop + borderBottom);
+                if (el.scrollHeight > maxHeight) {
+                  el.style.height = `${maxHeight}px`;
+                  el.style.overflowY = 'auto';
+                } else {
+                  el.style.height = `${el.scrollHeight}px`;
+                  el.style.overflowY = 'hidden';
+                }
+              } catch (err) {}
+            }}
             onClick={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
             onKeyUp={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
             onSelect={(e) => setCaretPosition(e.currentTarget.selectionStart || 0)}
             onKeyDown={(e) => handleMessageInputKeyDown(e, mentionSuggestions, mentionMeta)}
             placeholder="Ketik pesan..."
+            rows={1}
+            style={{ resize: 'none', background: 'transparent', border: 0, padding: 0 }}
             className={cn(
-              'w-full min-w-0 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white',
-              isMobile ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-sm'
+              'w-full min-w-0 text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400',
+              isMobile ? 'px-3 text-[13px]' : 'px-4 text-sm'
             )}
           />
         </div>
@@ -181,3 +227,5 @@ export default function ChatInput({
     </div>
   );
 }
+
+// Auto-resize handled inside component via messageInputRef

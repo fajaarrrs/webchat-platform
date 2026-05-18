@@ -213,8 +213,22 @@ io.on('connection', (socket) => {
     ).get(mid, fid);
     if (!existing) return;
 
-    const canEdit = socket.user.role === 'admin' || existing.user_id === socket.user.id;
-    if (!canEdit) return;
+      const canEditByRole = socket.user.role === 'admin' || existing.user_id === socket.user.id;
+      if (!canEditByRole) return;
+
+      // Enforce 15-minute edit window for non-admins
+      if (socket.user.role !== 'admin') {
+        const row = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(mid);
+        if (row && row.created_at) {
+          const created = new Date(row.created_at).getTime();
+          const now = Date.now();
+          const FIFTEEN_MIN = 15 * 60 * 1000;
+          if (now - created > FIFTEEN_MIN) {
+            // Reject silently (could emit an error ack in future)
+            return;
+          }
+        }
+      }
 
     db.prepare('UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextContent, mid);
 

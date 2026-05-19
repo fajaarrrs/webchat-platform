@@ -101,18 +101,25 @@ export default function ChatPage() {
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [openReactionPickerFor, setOpenReactionPickerFor] = useState(null);
   const [openReactionUsersFor, setOpenReactionUsersFor] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [reactionPickerPos, setReactionPickerPos] = useState(null);
   const [reactionPickerMainEmojis, setReactionPickerMainEmojis] = useState([]);
   const [reactionPickerShowExtended, setReactionPickerShowExtended] = useState(false);
   const [dropdownCoords, setDropdownCoords] = useState({ top: 0, left: 0 });
   const [mobileMenu, setMobileMenu] = useState(null);
+  const [dropdownArrow, setDropdownArrow] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [forumMembers, setForumMembers] = useState([]);
   const [caretPosition, setCaretPosition] = useState(0);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
 
   const messagesEndRef = useRef(null);
+  const messageListContainerRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
+  const [newMessageCount, setNewMessageCount] = useState(0);
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
   const messageSearchInputRef = useRef(null);
@@ -184,8 +191,20 @@ export default function ChatPage() {
     const socket = io(SOCKET_URL, { auth: { token } });
     socketRef.current = socket;
     socket.on('new_message', (msg) => {
-      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
-      syncForumPreview(msg);
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        const next = [...prev, msg];
+        // If user is at bottom, keep view pinned to bottom
+        if (isAtBottomRef.current) {
+          // scroll after render
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        } else {
+          // user scrolled up: increment unseen count and don't force scroll
+          setNewMessageCount((c) => c + 1);
+        }
+        syncForumPreview(msg);
+        return next;
+      });
     });
     socket.on('forum_preview_updated', (payload) => {
       applyForumPreviewUpdate(payload);
@@ -211,6 +230,25 @@ export default function ChatPage() {
     });
     return () => socket.disconnect();
   }, []);
+
+  // Monitor scroll position of the message list container to show/hide the
+  // floating "scroll to bottom" button and reset unseen count when user
+  // scrolls back to bottom.
+  useEffect(() => {
+    const el = messageListContainerRef.current;
+    if (!el) return;
+    const THRESH = 60; // px from bottom considered "at bottom"
+    const onScroll = () => {
+      const atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < THRESH;
+      isAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+      if (atBottom) setNewMessageCount(0);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    // initial check
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [messageListContainerRef.current]);
 
   useEffect(() => {
     api.get('/forums').then(data => {
@@ -293,13 +331,16 @@ export default function ChatPage() {
     setTimeout(() => messageInputRef.current?.focus(), 0);
   }, [activeForumId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Remove automatic scrolling on every messages change. Instead, only auto-scroll
+  // when the user is currently at the bottom. When user is scrolled up, show
+  // a floating "scroll to bottom" button with a badge count for new messages.
 
   useEffect(() => {
     const handle = e => {
-      if (!e.target.closest('[data-msgdropdown]')) setOpenDropdownId(null);
+      if (!e.target.closest('[data-msgdropdown]')) {
+        setOpenDropdownId(null);
+        setDropdownArrow(null);
+      }
     };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
@@ -765,39 +806,135 @@ export default function ChatPage() {
     const shouldClose = openDropdownId === msgId;
     if (shouldClose) {
       setOpenDropdownId(null);
+      setDropdownArrow(null);
       return;
     }
 
     const trigger = event.currentTarget;
-    const rect = trigger.getBoundingClientRect();
+    // Prefer using the message bubble rect so dropdown anchors to the bubble,
+    // not the small chevron button or avatar. Fallback to trigger rect.
+    const bubbleNode = messageBubbleRefs.current?.[msgId];
+    const rect = (bubbleNode && bubbleNode.getBoundingClientRect) ? bubbleNode.getBoundingClientRect() : trigger.getBoundingClientRect();
     const menuWidth = 168;
     const menuHeight = 168;
-    const gap = 8;
-    const viewportPadding = 8;
+    // numeric spacing values (tweak these numbers to tune popup distance)
+    const gap = 10; // px gap from bubble to menu
+    const viewportPadding = 8; // px padding from screen edges
 
-    let left = isMe
-      ? rect.left - menuWidth - gap
-      : rect.right + gap;
+    // safe zones to avoid covering header and input area
+    // smaller values move the popup closer to the bubble for top/bottom edge cases
+    const TOP_SAFE = 56; // px from top (header area)
+    const BOTTOM_SAFE = 72; // px from bottom (chat input area)
 
-    if (left + menuWidth > window.innerWidth - viewportPadding) {
-      left = rect.left - menuWidth - gap;
-    }
-    if (left < viewportPadding) {
-      left = rect.right + gap;
-    }
-    if (left + menuWidth > window.innerWidth - viewportPadding) {
-      left = window.innerWidth - menuWidth - viewportPadding;
+    // compute a dynamic bottom safe area using actual input position so menu won't
+    // be placed where it can be covered by the input field
+    let dynamicBottomSafe = BOTTOM_SAFE;
+    try {
+      const inputRect = messageInputRef.current?.getBoundingClientRect?.();
+      if (inputRect && inputRect.top) {
+        const fromBottom = Math.ceil(window.innerHeight - inputRect.top);
+        dynamicBottomSafe = Math.max(BOTTOM_SAFE, fromBottom + 8);
+      }
+    } catch (err) {
+      // fallback to static BOTTOM_SAFE
     }
 
-    let top = rect.top + rect.height / 2 - menuHeight / 2;
-    if (top < viewportPadding) {
-      top = viewportPadding;
+    // horizontal placement: prefer outside the bubble
+    const spaceRight = window.innerWidth - rect.right - viewportPadding;
+    const spaceLeft = rect.left - viewportPadding;
+    let left;
+    let intendedSide = null; // 'left'|'right'|'top'|'bottom'
+    if (!isMe) {
+      // for other users: prefer placing to the right of the bubble
+      if (spaceRight >= menuWidth + gap) {
+        left = rect.right + gap;
+        intendedSide = 'left';
+      } else if (spaceLeft >= menuWidth + gap) {
+        left = rect.left - menuWidth - gap;
+        intendedSide = 'right';
+      } else {
+        // fallback: clamp within viewport but still prefer right side visually
+        left = Math.max(viewportPadding, Math.min(window.innerWidth - menuWidth - viewportPadding, rect.right + gap));
+        intendedSide = 'left';
+      }
+    } else {
+      // for own messages: prefer placing to the left of the bubble
+      if (spaceLeft >= menuWidth + gap) {
+        left = rect.left - menuWidth - gap;
+        intendedSide = 'right';
+      } else if (spaceRight >= menuWidth + gap) {
+        left = rect.right + gap;
+        intendedSide = 'left';
+      } else {
+        left = Math.max(viewportPadding, Math.min(window.innerWidth - menuWidth - viewportPadding, rect.left - menuWidth - gap));
+        intendedSide = 'right';
+      }
     }
-    if (top + menuHeight > window.innerHeight - viewportPadding) {
-      top = window.innerHeight - menuHeight - viewportPadding;
+
+    // vertical placement: when dropdown sits to left/right, prefer centering vertically beside the message
+    const centerTopCandidate = Math.round(rect.top + rect.height / 2 - menuHeight / 2);
+    const centerFits = centerTopCandidate >= TOP_SAFE + viewportPadding && (centerTopCandidate + menuHeight) <= window.innerHeight - dynamicBottomSafe - viewportPadding;
+    let top = centerTopCandidate;
+
+    const fitsAbove = rect.top - gap - menuHeight >= TOP_SAFE + viewportPadding;
+    const fitsBelow = rect.bottom + gap + menuHeight <= window.innerHeight - dynamicBottomSafe - viewportPadding;
+
+    // Compute closest above/below positions relative to the bubble
+    const preferBelowTop = rect.bottom + gap;
+    const preferAboveTop = rect.top - menuHeight - gap;
+
+    // Allowed range biased toward the bubble so the menu doesn't sit far away when centered
+    const ALLOW_BIAS = 6; // px bias inward from fully above/below positions
+    const allowedMin = Math.max(TOP_SAFE + viewportPadding, preferAboveTop + ALLOW_BIAS);
+    const allowedMax = Math.min(window.innerHeight - menuHeight - viewportPadding - dynamicBottomSafe, preferBelowTop - ALLOW_BIAS);
+
+    if (allowedMin <= allowedMax) {
+      // clamp centered top to be within the biased allowed range (keeps menu nearer the bubble)
+      top = Math.max(allowedMin, Math.min(centerTopCandidate, allowedMax));
+    } else {
+      // If placing below would overlap the input area, prefer placing above the bubble even
+      // if it means clamping the top into the safe zone. This keeps the menu visually close
+      // to the bubble and avoids covering the input field.
+      const wouldOverlapInputIfBelow = (rect.bottom + gap + menuHeight) > (window.innerHeight - dynamicBottomSafe - viewportPadding);
+      if (wouldOverlapInputIfBelow) {
+        // attempt to place above and nudge closer to the bubble; then clamp inside safe zone
+        top = Math.min(preferAboveTop + 12, window.innerHeight - menuHeight - viewportPadding - dynamicBottomSafe);
+        top = Math.max(top, TOP_SAFE + viewportPadding);
+      } else if (fitsBelow) {
+        // fallback: place below but clamp
+        top = Math.max(preferBelowTop, TOP_SAFE + viewportPadding);
+        top = Math.min(top, window.innerHeight - menuHeight - viewportPadding - dynamicBottomSafe);
+      } else if (fitsAbove) {
+        top = Math.min(preferAboveTop, window.innerHeight - menuHeight - viewportPadding - dynamicBottomSafe);
+        top = Math.max(top, TOP_SAFE + viewportPadding);
+      } else {
+        // ultimate fallback: center but clamp to viewport safe area
+        top = Math.max(TOP_SAFE + viewportPadding, Math.min(centerTopCandidate, window.innerHeight - menuHeight - viewportPadding - dynamicBottomSafe));
+      }
     }
 
     setDropdownCoords({ top, left });
+
+    // compute arrow position relative to dropdown box, pointing to bubble center
+    let arrow = null;
+    const bubbleCenterY = Math.round(rect.top + rect.height / 2);
+    const bubbleCenterX = Math.round(rect.left + rect.width / 2);
+
+    if (intendedSide === 'left') {
+      const arrowTop = Math.round(bubbleCenterY - top - 8);
+      arrow = { side: 'left', top: Math.max(8, Math.min(menuHeight - 16, arrowTop)) };
+    } else if (intendedSide === 'right') {
+      const arrowTop = Math.round(bubbleCenterY - top - 8);
+      arrow = { side: 'right', top: Math.max(8, Math.min(menuHeight - 16, arrowTop)) };
+    } else if (top >= rect.bottom) {
+      const arrowLeft = Math.round(bubbleCenterX - left - 8);
+      arrow = { side: 'top', left: Math.max(12, Math.min(menuWidth - 24, arrowLeft)) };
+    } else {
+      const arrowLeft = Math.round(bubbleCenterX - left - 8);
+      arrow = { side: 'bottom', left: Math.max(12, Math.min(menuWidth - 24, arrowLeft)) };
+    }
+
+    setDropdownArrow(arrow);
     setOpenDropdownId(msgId);
   };
 
@@ -867,35 +1004,70 @@ export default function ChatPage() {
   };
 
   const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
-  const canEdit = msg => (user?.role === 'admin' || msg.user_id === user?.id) && !msg.file_url;
+  const canEdit = (msg) => {
+    if (!msg) return false;
+    if (msg.file_url) return false;
+    if (user?.role === 'admin') return true;
+    if (msg.user_id !== user?.id) return false;
+    try {
+      const created = new Date(msg.created_at).getTime();
+      const now = Date.now();
+      const diff = now - created;
+      const FIFTEEN_MIN = 15 * 60 * 1000;
+      return diff <= FIFTEEN_MIN;
+    } catch {
+      return false;
+    }
+  };
   const canPin = () => user?.role === 'admin';
 
   const handleEditMessage = (msg) => {
     messageInputRef.current?.blur();
     if (!canEdit(msg)) return;
+    setEditingMessageId(msg.id);
+    setEditingText(msg.content || '');
+    setOpenDropdownId(null);
+    setMobileMenu(null);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-editarea="${msg.id}"] textarea`);
+      if (el) el.focus();
+    }, 0);
+  };
 
-    const nextText = window.prompt('Edit pesan:', msg.content || '');
-    if (nextText === null) return;
-
-    const trimmed = nextText.trim();
-    if (!trimmed) {
+  const handleSaveEdit = async (msgId) => {
+    const trimmed = (editingText || '').trim();
+    const orig = messages.find(m => m.id === msgId)?.content || '';
+    if (trimmed === '') {
       addToast('Pesan tidak boleh kosong.', 'error');
       return;
     }
-    if (trimmed === (msg.content || '').trim()) {
-      setOpenDropdownId(null);
-      setMobileMenu(null);
+    if (trimmed === (orig || '').trim()) {
+      setEditingMessageId(null);
+      setEditingText('');
       return;
     }
 
-    socketRef.current?.emit('edit_message', {
-      messageId: msg.id,
-      forumId: activeForumId,
-      content: trimmed,
-    });
+    try {
+      // optimistic close; server broadcasts updated message via socket
+      socketRef.current?.emit('edit_message', {
+        messageId: msgId,
+        forumId: activeForumId,
+        content: trimmed,
+      }, (res) => {
+        if (res && res.error) {
+          addToast(res.error || 'Gagal mengedit pesan.', 'error');
+        }
+      });
+      setEditingMessageId(null);
+      setEditingText('');
+    } catch (err) {
+      addToast(err.message || 'Gagal mengedit pesan.', 'error');
+    }
+  };
 
-    setOpenDropdownId(null);
-    setMobileMenu(null);
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText('');
   };
   const getReplyPreviewData = (msg) => {
     if (!msg.reply_to_id) return null;
@@ -1103,6 +1275,16 @@ export default function ChatPage() {
     setShowHeaderMenu(false);
   };
 
+  const handleOpenGroupInfo = () => {
+    if (!activeForumId) return;
+    setShowDirectory(true);
+    // refresh members when opening
+    api.get(`/forums/${activeForumId}/members`)
+      .then(data => setForumMembers(data))
+      .catch(() => setForumMembers([]));
+    setShowHeaderMenu(false);
+  };
+
   const handleOpenJoinModal = () => {
     setShowJoinModal(true);
     setShowQuickMenu(false);
@@ -1234,6 +1416,7 @@ export default function ChatPage() {
               handleOpenJoinModal={handleOpenJoinModal}
               handleOpenFaq={handleOpenFaq}
               handleOpenTasks={handleOpenTasks}
+              handleOpenGroupInfo={handleOpenGroupInfo}
               handleLogout={handleLogout}
             />
 
@@ -1317,10 +1500,17 @@ export default function ChatPage() {
               handlePin={handlePin}
               handleDelete={handleDelete}
               handleEditMessage={handleEditMessage}
+              editingMessageId={editingMessageId}
+              editingText={editingText}
+              setEditingText={setEditingText}
+              handleSaveEdit={handleSaveEdit}
+              handleCancelEdit={handleCancelEdit}
               handleOpenEditEvent={handleOpenEditEvent}
               handleOpenViewEvent={handleOpenViewEvent}
               openReactionPickerAtMessage={openReactionPickerAtMessage}
               handleToggleDropdown={handleToggleDropdown}
+              containerRef={messageListContainerRef}
+              dropdownArrow={dropdownArrow}
               handleTouchStart={handleTouchStart}
               handleTouchEnd={handleTouchEnd}
               handleDeleteSelectedMessages={handleDeleteSelectedMessages}
@@ -1331,6 +1521,30 @@ export default function ChatPage() {
               canEdit={canEdit}
               baseUrl={BASE_URL}
             />
+
+            {/* Floating scroll-to-bottom button */}
+            {!isAtBottom && (
+              <div style={{ position: 'fixed', right: 18, bottom: 86, zIndex: 900 }}>
+                <button
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    setNewMessageCount(0);
+                    isAtBottomRef.current = true;
+                    setIsAtBottom(true);
+                  }}
+                  title="Scroll to bottom"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 36, height: 36, borderRadius: 999, background: '#fff', color: '#2563EB', border: '1px solid #2563EB', boxShadow: 'none', cursor: 'pointer', padding: 0, position: 'relative'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                  {newMessageCount > 0 && (
+                    <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: '#ef4444', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fff' }}>{newMessageCount}</span>
+                  )}
+                </button>
+              </div>
+            )}
 
             <ChatInput
               isMobile={isMobile}

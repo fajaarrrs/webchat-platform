@@ -23,6 +23,7 @@ export default function MessageList({
   messageBubbleRefs,
   messageReactionRefs,
   messagesEndRef,
+  containerRef,
   emojiPickerRef,
   hoveredMsgId,
   setHoveredMsgId,
@@ -45,6 +46,7 @@ export default function MessageList({
   setOpenReactionUsersFor,
   normalizedMessageSearch,
   activeSearchMatchId,
+  dropdownArrow,
   formatMessageGroupLabel,
   getJakartaDateKey,
   parseUtcDate,
@@ -67,6 +69,11 @@ export default function MessageList({
   handlePin,
   handleDelete,
   handleEditMessage,
+  editingMessageId,
+  editingText,
+  setEditingText,
+  handleSaveEdit,
+  handleCancelEdit,
   handleOpenEditEvent,
   handleOpenViewEvent,
   openReactionPickerAtMessage,
@@ -87,7 +94,7 @@ export default function MessageList({
   // dropdown rendering handled by MessageDropdown component
 
   return (
-    <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4" style={{ position: 'relative', zIndex: 0 }}>
+    <div ref={containerRef} className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4" style={{ position: 'relative', zIndex: 0 }}>
       {pinnedMessages.length > 0 && (
         <div style={{ padding: '7px 20px', background: '#EFF6FF', borderBottom: '1px solid #DBEAFE', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1D4ED8' }}>
           <Pin size={12} />
@@ -177,6 +184,17 @@ export default function MessageList({
         const isJumpedTarget = jumpedMessageId === msg.id;
         const showCtrl = !selectionMode && (isHovered || isOpen);
 
+        // Compute compact spacing and adjust when reactions exist
+        const REACTION_EXTRA = 8; // visual height of reactions area
+        const REACTION_GAP = 12; // extra gap between reaction UI and the following bubble (3-5px recommended)
+        const BASE_GAP = 0; // default compact gap between messages
+        const baseBetweenDifferentUsers = 25; // slightly larger between different senders
+        const prevHasReactions = prevMsg && (prevMsg.reactions || []).length > 0;
+        const marginTop = prevMsg
+          ? (prevMsg.user_id !== msg.user_id ? baseBetweenDifferentUsers : BASE_GAP) + (prevHasReactions ? (REACTION_EXTRA + REACTION_GAP) : 0)
+          : BASE_GAP;
+        const paddingBottom = (msg.reactions || []).length > 0 ? 5 + REACTION_EXTRA : 0;
+
         return (
           <div key={msg.id}>
             {showDateSeparator && (
@@ -203,12 +221,11 @@ export default function MessageList({
               className={cn(
                 'relative flex items-center gap-1.5 rounded-xl transition-all duration-200',
                 isMe ? 'justify-end' : 'justify-start',
-                i > 0 && prevMsg?.user_id !== msg.user_id ? 'mt-3.5' : 'mt-0.5',
                 selectionMode ? 'cursor-pointer px-1.5 py-0.5' : 'cursor-default',
                 selectionMode && isSelected ? 'bg-indigo-100' : '',
                 isActiveMatch || isJumpedTarget ? 'ring-2 ring-blue-300' : ''
               )}
-              style={{ paddingBottom: 22 }}
+              style={{ paddingBottom, marginTop }}
             >
               {!selectionMode && isMe && (
                 <div
@@ -222,21 +239,22 @@ export default function MessageList({
                     <ChevronDown size={13} />
                   </button>
                   {isOpen && (
-                    <MessageDropdown
-                      msg={msg}
-                      posStyle={dropdownCoords}
-                      handleCopyMessage={handleCopyMessage}
-                      canEdit={canEdit}
-                      handleEditMessage={handleEditMessage}
-                      openReactionPickerAtMessage={openReactionPickerAtMessage}
-                      closeDropdowns={closeDropdowns}
-                      handleReply={handleReply}
-                      canPin={canPin}
-                      handlePin={handlePin}
-                      canDelete={canDelete}
-                      handleDelete={handleDelete}
-                      user={user}
-                    />
+                      <MessageDropdown
+                        msg={msg}
+                        posStyle={dropdownCoords}
+                        dropdownArrow={dropdownArrow}
+                        handleCopyMessage={handleCopyMessage}
+                        canEdit={canEdit}
+                        handleEditMessage={handleEditMessage}
+                        openReactionPickerAtMessage={openReactionPickerAtMessage}
+                        closeDropdowns={closeDropdowns}
+                        handleReply={handleReply}
+                        canPin={canPin}
+                        handlePin={handlePin}
+                        canDelete={canDelete}
+                        handleDelete={handleDelete}
+                        user={user}
+                      />
                   )}
                 </div>
               )}
@@ -261,6 +279,7 @@ export default function MessageList({
                     <div className="mt-0.5 text-[11px] font-semibold" style={{ color: getRoleColor(msg.role) }}>
                       {getRoleLabel(msg.role)}
                     </div>
+                    
                   </div>
                 )}
 
@@ -466,7 +485,66 @@ export default function MessageList({
                       {msg.content && !msg.is_event && <div className="mt-2 text-[13px]">{renderMentions(msg.content)}</div>}
                     </div>
                   ) : (
-                    !msg.is_event && renderMentions(msg.content)
+                    !msg.is_event && (
+                      editingMessageId === msg.id ? (
+                        <div data-editarea={msg.id}>
+                          <div style={{ marginBottom: 8 }}>
+                            {/* Inline editor provided by parent via props */}
+                            <textarea
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: 80,
+                                padding: 10,
+                                borderRadius: 10,
+                                resize: 'vertical',
+                                background: '#fff',
+                                color: '#111827',
+                                border: '1px solid #E5E7EB',
+                                outline: 'none',
+                                fontSize: 14,
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button
+                              onClick={() => handleCancelEdit()}
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: 10,
+                                background: '#fff',
+                                border: '1px solid rgba(15,23,42,0.06)',
+                                color: '#0f172a',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 6px rgba(2,6,23,0.05)',
+                                fontWeight: 600,
+                                transition: 'transform 120ms ease, box-shadow 120ms ease'
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleSaveEdit(msg.id)}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 12,
+                                background: '#2563EB',
+                                color: '#fff',
+                                border: '1px solid rgba(37,99,235,0.9)',
+                                cursor: 'pointer',
+                                boxShadow: '0 6px 18px rgba(37,99,235,0.12)',
+                                fontWeight: 700,
+                                letterSpacing: 0.2,
+                                transition: 'transform 120ms ease, box-shadow 120ms ease'
+                              }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : renderMentions(msg.content)
+                    )
                   )}
 
                   <div
@@ -536,38 +614,42 @@ export default function MessageList({
                   </div>
                 </div>
               </div>
+              {/* dropdown trigger for other users: place inside the same flex row so it's vertically centered beside the bubble */}
+              {!selectionMode && !isMe && (
+                <div
+                  data-msgdropdown="true"
+                  className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
+                  style={{ alignSelf: 'center', marginLeft: 6 }}
+                >
+                  <button
+                    onClick={(e) => handleToggleDropdown(e, msg.id, false)}
+                    className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
+                  >
+                    <ChevronDown size={13} />
+                  </button>
+                  {isOpen && (
+                    <MessageDropdown
+                      msg={msg}
+                      posStyle={dropdownCoords}
+                      dropdownArrow={dropdownArrow}
+                      handleCopyMessage={handleCopyMessage}
+                      canEdit={canEdit}
+                      handleEditMessage={handleEditMessage}
+                      openReactionPickerAtMessage={openReactionPickerAtMessage}
+                      closeDropdowns={closeDropdowns}
+                      handleReply={handleReply}
+                      canPin={canPin}
+                      handlePin={handlePin}
+                      canDelete={canDelete}
+                      handleDelete={handleDelete}
+                      user={user}
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
-            {!selectionMode && !isMe && (
-              <div
-                data-msgdropdown="true"
-                className={cn('relative shrink-0 transition-all duration-200', showCtrl ? 'opacity-100' : 'opacity-0')}
-              >
-                <button
-                  onClick={(e) => handleToggleDropdown(e, msg.id, false)}
-                  className="flex h-6.5 w-6.5 items-center justify-center rounded-full border-0 bg-slate-200 text-slate-500 transition-all duration-200 hover:bg-slate-300"
-                >
-                  <ChevronDown size={13} />
-                </button>
-                {isOpen && (
-                  <MessageDropdown
-                    msg={msg}
-                    posStyle={dropdownCoords}
-                    handleCopyMessage={handleCopyMessage}
-                    canEdit={canEdit}
-                    handleEditMessage={handleEditMessage}
-                    openReactionPickerAtMessage={openReactionPickerAtMessage}
-                    closeDropdowns={closeDropdowns}
-                    handleReply={handleReply}
-                    canPin={canPin}
-                    handlePin={handlePin}
-                    canDelete={canDelete}
-                    handleDelete={handleDelete}
-                    user={user}
-                  />
-                )}
-              </div>
-            )}
+            
           </div>
         );
       })}

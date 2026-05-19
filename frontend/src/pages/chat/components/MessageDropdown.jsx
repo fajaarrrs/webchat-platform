@@ -1,9 +1,11 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Copy, Pencil, Smile, Reply, Pin, PinOff, Trash2 } from 'lucide-react';
 
-export default function MessageDropdown({
+function MessageDropdownInner({
   msg,
   posStyle,
+  dropdownArrow,
   handleCopyMessage,
   canEdit,
   handleEditMessage,
@@ -21,7 +23,8 @@ export default function MessageDropdown({
       data-msgdropdown="true"
       style={{
         position: 'fixed',
-        zIndex: 500,
+        // ensure dropdown sits above header, input and other overlays
+        zIndex: 99999,
         minWidth: 152,
         background: '#fff',
         border: '1px solid #E5E7EB',
@@ -31,6 +34,39 @@ export default function MessageDropdown({
         ...posStyle,
       }}
     >
+      {dropdownArrow && (
+        <>
+          {/* outer (border) triangle */}
+          {dropdownArrow.side === 'left' && (
+            <div style={{ position: 'absolute', left: -9, top: `${dropdownArrow.top - 1}px`, width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderRight: '9px solid #E5E7EB' }} />
+          )}
+          {dropdownArrow.side === 'left' && (
+            <div style={{ position: 'absolute', left: -8, top: `${dropdownArrow.top}px`, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderRight: '8px solid #fff' }} />
+          )}
+
+          {dropdownArrow.side === 'right' && (
+            <div style={{ position: 'absolute', right: -9, top: `${dropdownArrow.top - 1}px`, width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '9px solid #E5E7EB' }} />
+          )}
+          {dropdownArrow.side === 'right' && (
+            <div style={{ position: 'absolute', right: -8, top: `${dropdownArrow.top}px`, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '8px solid #fff' }} />
+          )}
+
+          {dropdownArrow.side === 'top' && (
+            <div style={{ position: 'absolute', top: -9, left: `${dropdownArrow.left - 1}px`, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '9px solid #E5E7EB' }} />
+          )}
+          {dropdownArrow.side === 'top' && (
+            <div style={{ position: 'absolute', top: -8, left: `${dropdownArrow.left}px`, width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '8px solid #fff' }} />
+          )}
+
+          {dropdownArrow.side === 'bottom' && (
+            <div style={{ position: 'absolute', bottom: -9, left: `${dropdownArrow.left - 1}px`, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '9px solid #E5E7EB' }} />
+          )}
+          {dropdownArrow.side === 'bottom' && (
+            <div style={{ position: 'absolute', bottom: -8, left: `${dropdownArrow.left}px`, width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: '8px solid #fff' }} />
+          )}
+        </>
+      )}
+
       {[
         { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
         ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
@@ -55,4 +91,9 @@ export default function MessageDropdown({
       ))}
     </div>
   );
+}
+
+export default function MessageDropdown(props) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(<MessageDropdownInner {...props} />, document.body);
 }

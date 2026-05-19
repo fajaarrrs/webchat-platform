@@ -11,6 +11,7 @@ import MessageList from './chat/components/MessageList';
 import ChatInput from './chat/components/ChatInput';
 import DirectoryPanel from './chat/components/DirectoryPanel';
 import ChatHeader from './chat/components/ChatHeader';
+import TaskSlider from './chat/components/TaskSlider';
 import FaqModal from './chat/components/FaqModal';
 import JoinModal from './chat/components/JoinModal';
 import ViewEventModal from './chat/components/ViewEventModal';
@@ -95,6 +96,7 @@ export default function ChatPage() {
   const [showDirectory, setShowDirectory] = useState(false);
   const [showPinnedMenu, setShowPinnedMenu] = useState(false);
   const [jumpedMessageId, setJumpedMessageId] = useState(null);
+  const [showTaskSlider, setShowTaskSlider] = useState(false);
 
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [openReactionPickerFor, setOpenReactionPickerFor] = useState(null);
@@ -1096,6 +1098,11 @@ export default function ChatPage() {
     setShowQuickMenu(false);
   };
 
+  const handleOpenTasks = () => {
+    setShowTaskSlider(true);
+    setShowHeaderMenu(false);
+  };
+
   const handleOpenJoinModal = () => {
     setShowJoinModal(true);
     setShowQuickMenu(false);
@@ -1226,6 +1233,7 @@ export default function ChatPage() {
               handleOpenSettings={handleOpenSettings}
               handleOpenJoinModal={handleOpenJoinModal}
               handleOpenFaq={handleOpenFaq}
+              handleOpenTasks={handleOpenTasks}
               handleLogout={handleLogout}
             />
 
@@ -1439,6 +1447,9 @@ export default function ChatPage() {
       )}
 
       {viewingEvent && <ViewEventModal viewingEvent={viewingEvent} onClose={() => setViewingEvent(null)} />}
+
+      {/* Task Slider */}
+      <TaskSlider isOpen={showTaskSlider} onClose={() => setShowTaskSlider(false)} forumId={activeForumId} />
     </DashboardLayout>
   );
 }

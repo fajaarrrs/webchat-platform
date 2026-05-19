@@ -82,6 +82,17 @@ function initDatabase() {
       FOREIGN KEY (message_id) REFERENCES messages(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      completed INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // Lightweight migrations for existing databases.
@@ -141,6 +152,13 @@ function initDatabase() {
   }
   if (!hasColumn('event_call_link')) {
     db.exec('ALTER TABLE messages ADD COLUMN event_call_link TEXT');
+  }
+
+  const taskColumns = db.prepare('PRAGMA table_info(tasks)').all();
+  const hasTaskColumn = (name) => taskColumns.some((col) => col.name === name);
+
+  if (!hasTaskColumn('forum_id')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN forum_id INTEGER');
   }
 
   // Ensure legacy seeded admin account is migrated to the latest default credentials.

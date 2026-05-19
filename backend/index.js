@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const forumRoutes = require('./routes/forums');
 const messageRoutes = require('./routes/messages');
 const userRoutes = require('./routes/users');
+const taskRoutes = require('./routes/tasks');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/forums', forumRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Socket.io — authenticate via JWT
 io.use((socket, next) => {

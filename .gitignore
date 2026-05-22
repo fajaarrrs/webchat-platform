@@ -27,3 +27,6 @@ check-login.js
 # OS files
 .DS_Store
 Thumbs.db
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal

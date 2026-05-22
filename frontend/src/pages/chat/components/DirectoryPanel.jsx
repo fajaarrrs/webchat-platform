@@ -12,8 +12,11 @@ export default function DirectoryPanel({
   getFileInfo,
   setShowDirectory,
   baseUrl,
+  overlay = false,
 }) {
-  if (!activeForum) return null;
+  if (!activeForum) {
+    return null;
+  }
 
   const formatLastSeenText = (iso) => {
     if (!iso) return '';
@@ -31,8 +34,14 @@ export default function DirectoryPanel({
     } catch (err) { return ''; }
   };
 
+  const containerStyle = overlay ? {
+    width: '100%', maxWidth: 360, height: '100%', borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0
+  } : {
+    width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0
+  };
+
   return (
-    <div style={{ width: 272, borderLeft: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <div style={containerStyle}>
       <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6' }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>Directory</span>
         <button

@@ -1756,19 +1756,46 @@ export default function ChatPage() {
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
-          <DirectoryPanel
-            activeForum={activeForum}
-            forumMembers={forumMembers}
-            user={user}
-            getInitials={getInitials}
-            getRoleColor={getRoleColor}
-            getRoleLabel={getRoleLabel}
-            getColor={getColor}
-            sharedFiles={sharedFiles}
-            getFileInfo={getFileInfo}
-            setShowDirectory={setShowDirectory}
-            baseUrl={BASE_URL}
-          />
+          isMobile ? (
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.28)', zIndex: 1200, display: 'flex', justifyContent: 'flex-end' }}
+              onClick={() => setShowDirectory(false)}
+            >
+              <div
+                style={{ width: '100%', maxWidth: 360, height: '100%', boxShadow: '0 12px 36px rgba(0,0,0,0.18)', background: 'transparent' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <DirectoryPanel
+                  overlay={true}
+                  activeForum={activeForum}
+                  forumMembers={forumMembers}
+                  user={user}
+                  getInitials={getInitials}
+                  getRoleColor={getRoleColor}
+                  getRoleLabel={getRoleLabel}
+                  getColor={getColor}
+                  sharedFiles={sharedFiles}
+                  getFileInfo={getFileInfo}
+                  setShowDirectory={setShowDirectory}
+                  baseUrl={BASE_URL}
+                />
+              </div>
+            </div>
+          ) : (
+            <DirectoryPanel
+              activeForum={activeForum}
+              forumMembers={forumMembers}
+              user={user}
+              getInitials={getInitials}
+              getRoleColor={getRoleColor}
+              getRoleLabel={getRoleLabel}
+              getColor={getColor}
+              sharedFiles={sharedFiles}
+              getFileInfo={getFileInfo}
+              setShowDirectory={setShowDirectory}
+              baseUrl={BASE_URL}
+            />
+          )
         )}
       </div>
 

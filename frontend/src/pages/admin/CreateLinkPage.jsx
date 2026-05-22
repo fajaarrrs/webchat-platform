@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
-import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen } from 'lucide-react';
+import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen, Pencil } from 'lucide-react';
 import useBreakpoint from '../../hooks/useBreakpoint';
 import './CreateLinkPage.css';
 
@@ -18,6 +18,9 @@ export default function CreateLinkPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [editLink, setEditLink] = useState(null); // link object being edited
+  const [editForm, setEditForm] = useState({ title: '', project: '', description: '' });
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     api
@@ -65,6 +68,35 @@ export default function CreateLinkPage() {
       addToast('Link berhasil dihapus.', 'success');
     } catch (err) {
       addToast(err.message, 'error');
+    }
+  };
+
+  const openEdit = (link) => {
+    setEditLink(link);
+    setEditForm({ title: link.title || '', project: link.project || '', description: link.description || '' });
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!editLink) return;
+    const id = editLink.id;
+    if (!editForm.title.trim() || !editForm.project.trim()) return addToast('Judul dan project wajib diisi.', 'error');
+
+    setEditLoading(true);
+    try {
+      const updated = await api.put(`/forums/${id}`, {
+        title: editForm.title.trim(),
+        project: editForm.project.trim(),
+        description: editForm.description.trim(),
+      });
+
+      setLinks((prev) => prev.map((l) => (l.id === id ? updated : l)));
+      setEditLink(null);
+      addToast(`Link "${updated.title}" berhasil diperbarui.`, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -344,6 +376,33 @@ export default function CreateLinkPage() {
                             <ExternalLink size={13} />
                           </a>
 
+                          <button
+                            onClick={() => openEdit(link)}
+                            title="Edit link"
+                            style={{
+                              border: '1px solid #E5E7EB',
+                              background: '#fff',
+                              padding: '6px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              color: '#6B7280',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#eff6ff';
+                              e.currentTarget.style.color = '#2563EB';
+                              e.currentTarget.style.borderColor = '#93c5fd';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#fff';
+                              e.currentTarget.style.color = '#6B7280';
+                              e.currentTarget.style.borderColor = '#E5E7EB';
+                            }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+
                           {deleteConfirm === link.id ? (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button
@@ -414,6 +473,49 @@ export default function CreateLinkPage() {
           </div>
         </div>
       </div>
+      {editLink && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.4)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <form onSubmit={handleUpdate} style={{ width: isMobile ? '94%' : '640px', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 50px rgba(2,6,23,0.2)' }}>
+            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18 }}>Edit Link</h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: `1fr 1fr`, gap: 12 }}>
+              <div>
+                <label className="form-label">Judul Link <span>*</span></label>
+                <input
+                  className="link-input"
+                  value={editForm.title}
+                  maxLength={MAX_TITLE_LENGTH}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="form-label">Nama Project <span>*</span></label>
+                <input
+                  className="link-input"
+                  value={editForm.project}
+                  maxLength={MAX_PROJECT_LENGTH}
+                  onChange={(e) => setEditForm({ ...editForm, project: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label className="form-label">Deskripsi</label>
+              <input
+                className="link-input"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" onClick={() => setEditLink(null)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer' }}>Batal</button>
+              <button type="submit" disabled={editLoading} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer' }}>{editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: '#6B7280' }}>Catatan: Jika Anda mengubah Judul, token/link akan otomatis diperbarui sesuai judul baru.</div>
+          </form>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

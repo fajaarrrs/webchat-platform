@@ -401,4 +401,52 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// PUT /api/forums/:id — update forum metadata (admin only)
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
+  const forumId = parseInt(req.params.id, 10);
+  if (Number.isNaN(forumId)) return res.status(400).json({ error: 'Forum ID tidak valid.' });
+
+  const forum = db.prepare('SELECT * FROM forums WHERE id = ?').get(forumId);
+  if (!forum) return res.status(404).json({ error: 'Forum tidak ditemukan.' });
+
+  const { title, project, description } = req.body || {};
+  if (!title || !project) return res.status(400).json({ error: 'Judul forum dan nama project wajib diisi.' });
+
+  const cleanTitle = String(title).trim();
+  const cleanProject = String(project).trim();
+  const cleanDesc = (description || '').trim();
+
+  if (cleanTitle.length > MAX_FORUM_TEXT_LENGTH || cleanProject.length > MAX_FORUM_TEXT_LENGTH) {
+    return res.status(400).json({ error: `Judul link dan nama project maksimal ${MAX_FORUM_TEXT_LENGTH} karakter.` });
+  }
+
+  // If title changed, regenerate a unique token (slug-like). Ensure uniqueness excluding current forum id.
+  let token = forum.token;
+  if (cleanTitle !== forum.title) {
+    const base = toSlug(cleanTitle) || 'forum';
+    let candidate = base;
+    let suffix = 2;
+    while (true) {
+      const existing = db.prepare('SELECT id FROM forums WHERE token = ?').get(candidate);
+      if (!existing || existing.id === forumId) break;
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    token = candidate;
+  }
+
+  db.prepare('UPDATE forums SET title = ?, project = ?, description = ?, token = ? WHERE id = ?')
+    .run(cleanTitle, cleanProject, cleanDesc, token, forumId);
+
+  const updated = db.prepare(`
+    SELECT f.*, u.username as creator_name,
+           (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
+           (SELECT COUNT(*) FROM messages WHERE forum_id = f.id) as message_count
+    FROM forums f LEFT JOIN users u ON f.created_by = u.id
+    WHERE f.id = ?
+  `).get(forumId);
+
+  return res.json(updated);
+});
+
 module.exports = router;

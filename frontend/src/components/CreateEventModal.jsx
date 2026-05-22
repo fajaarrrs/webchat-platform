@@ -1,5 +1,170 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Calendar, Clock, MapPin, Link2, ChevronDown, ChevronUp } from 'lucide-react';
+
+function CustomDateInput({ value, onChange, error, min, style, onFocusBase, onBlurBase }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const formatted = value ? value.split('-').reverse().join('/') : '';
+  
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        type={isFocused ? "date" : "text"}
+        value={isFocused ? value : formatted}
+        min={min}
+        onChange={onChange}
+        onFocus={(e) => { setIsFocused(true); if(onFocusBase) onFocusBase(e); }}
+        onBlur={(e) => { setIsFocused(false); if(onBlurBase) onBlurBase(e); }}
+        placeholder="DD/MM/YYYY"
+        style={{
+          ...style,
+          borderColor: error ? '#DC2626' : '#E5E7EB',
+          paddingRight: isFocused ? 12 : 36
+        }}
+      />
+      {!isFocused && (
+        <Calendar size={14} color="#6B7280" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+      )}
+    </div>
+  );
+}
+
+function CustomTimePicker({ value, onChange, error, style }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const hourRef = useRef(null);
+  const minuteRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (hourRef.current) hourRef.current.scrollIntoView({ block: 'center' });
+      if (minuteRef.current) minuteRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [isOpen]);
+
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+
+  const currentHour = value ? value.split(':')[0] : '00';
+  const currentMinute = value ? value.split(':')[1] : '00';
+
+  const handleHourSelect = (h, e) => {
+    e.stopPropagation();
+    onChange(`${h}:${currentMinute}`);
+  };
+
+  const handleMinuteSelect = (m, e) => {
+    e.stopPropagation();
+    onChange(`${currentHour}:${m}`);
+  };
+
+  return (
+    <div style={{ position: 'relative', flex: 1 }} ref={dropdownRef}>
+      <style>{`
+        .time-picker-col::-webkit-scrollbar { width: 4px; }
+        .time-picker-col::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
+        .time-picker-col::-webkit-scrollbar-track { background: transparent; }
+      `}</style>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          ...style,
+          borderColor: error ? '#DC2626' : (isOpen ? '#6366F1' : '#E5E7EB'),
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          userSelect: 'none'
+        }}
+      >
+        <span style={{ color: value ? '#1F2937' : '#9CA3AF' }}>
+          {value ? `${value} WIB` : 'HH:mm WIB'}
+        </span>
+        <Clock size={14} color="#6B7280" />
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          marginTop: 4,
+          left: 0,
+          right: 0,
+          background: '#fff',
+          border: '1px solid #E5E7EB',
+          borderRadius: 8,
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          zIndex: 50,
+          display: 'flex',
+          height: 200,
+          overflow: 'hidden'
+        }}>
+          <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid #E5E7EB' }} className="time-picker-col">
+            {hours.map(h => {
+              const isSelected = h === currentHour;
+              return (
+                <div
+                  key={`h-${h}`}
+                  ref={isSelected ? hourRef : null}
+                  onClick={(e) => handleHourSelect(h, e)}
+                  style={{
+                    padding: '8px 0',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: isSelected ? '#E0E7FF' : 'transparent',
+                    fontWeight: isSelected ? 600 : 400,
+                    fontSize: 13,
+                    color: isSelected ? '#4F46E5' : '#4B5563',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => { if(!isSelected) e.target.style.background = '#F9FAFB' }}
+                  onMouseLeave={(e) => { if(!isSelected) e.target.style.background = 'transparent' }}
+                >
+                  {h}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }} className="time-picker-col">
+            {minutes.map(m => {
+              const isSelected = m === currentMinute;
+              return (
+                <div
+                  key={`m-${m}`}
+                  ref={isSelected ? minuteRef : null}
+                  onClick={(e) => handleMinuteSelect(m, e)}
+                  style={{
+                    padding: '8px 0',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: isSelected ? '#E0E7FF' : 'transparent',
+                    fontWeight: isSelected ? 600 : 400,
+                    fontSize: 13,
+                    color: isSelected ? '#4F46E5' : '#4B5563',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={(e) => { if(!isSelected) e.target.style.background = '#F9FAFB' }}
+                  onMouseLeave={(e) => { if(!isSelected) e.target.style.background = 'transparent' }}
+                >
+                  {m}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function getTodayLocal() {
   const d = new Date();
@@ -50,7 +215,7 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
     if (showEndTime && endDate && endTime) {
       const startDt = new Date(`${startDate}T${startTime}`);
       const endDt = new Date(`${endDate}T${endTime}`);
-      if (endDt <= startDt) e.endTime = 'Waktu selesai harus setelah waktu mulai.';
+      if (endDt <= startDt) e.endTime = 'Jam selesai harus setelah jam mulai.';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -201,24 +366,22 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <input
-                    type="date"
+                  <CustomDateInput
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    style={{ ...inputBase, borderColor: errors.startDate ? '#DC2626' : '#E5E7EB' }}
-                    onFocus={(e) => e.target.style.borderColor = '#6366F1'}
-                    onBlur={(e) => e.target.style.borderColor = errors.startDate ? '#DC2626' : '#E5E7EB'}
+                    error={errors.startDate}
+                    style={inputBase}
+                    onFocusBase={(e) => e.target.style.borderColor = '#6366F1'}
+                    onBlurBase={(e) => e.target.style.borderColor = errors.startDate ? '#DC2626' : '#E5E7EB'}
                   />
                   {errors.startDate && <div style={errorStyle}>{errors.startDate}</div>}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <input
-                    type="time"
+                  <CustomTimePicker
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    style={{ ...inputBase, borderColor: errors.startTime ? '#DC2626' : '#E5E7EB' }}
-                    onFocus={(e) => e.target.style.borderColor = '#6366F1'}
-                    onBlur={(e) => e.target.style.borderColor = errors.startTime ? '#DC2626' : '#E5E7EB'}
+                    onChange={setStartTime}
+                    error={errors.startTime}
+                    style={inputBase}
                   />
                   {errors.startTime && <div style={errorStyle}>{errors.startTime}</div>}
                 </div>
@@ -249,26 +412,27 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
               {showEndTime && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <input
-                      type="date"
+                    <CustomDateInput
                       value={endDate}
                       min={startDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       style={inputBase}
-                      onFocus={(e) => e.target.style.borderColor = '#6366F1'}
-                      onBlur={(e) => e.target.style.borderColor = '#E5E7EB'}
+                      onFocusBase={(e) => e.target.style.borderColor = '#6366F1'}
+                      onBlurBase={(e) => e.target.style.borderColor = '#E5E7EB'}
                     />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <input
-                      type="time"
+                    <CustomTimePicker
                       value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      style={{ ...inputBase, borderColor: errors.endTime ? '#DC2626' : '#E5E7EB' }}
-                      onFocus={(e) => e.target.style.borderColor = '#6366F1'}
-                      onBlur={(e) => e.target.style.borderColor = errors.endTime ? '#DC2626' : '#E5E7EB'}
+                      onChange={setEndTime}
+                      error={errors.endTime}
+                      style={inputBase}
                     />
-                    {errors.endTime && <div style={errorStyle}>{errors.endTime}</div>}
+                    {errors.endTime ? (
+                      <div style={errorStyle}>{errors.endTime}</div>
+                    ) : (endDate > startDate) ? (
+                      <div style={{ fontSize: 11, color: '#10B981', marginTop: 4 }}>Waktu selesai di hari berikutnya</div>
+                    ) : null}
                   </div>
                 </div>
               )}

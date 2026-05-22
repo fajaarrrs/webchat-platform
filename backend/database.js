@@ -71,6 +71,17 @@ function initDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (reply_to_id) REFERENCES messages(id)
     );
+    
+    CREATE TABLE IF NOT EXISTS message_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      emoji TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(message_id, user_id),
+      FOREIGN KEY (message_id) REFERENCES messages(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // Lightweight migrations for existing databases.

@@ -236,7 +236,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('wchat_token');
-    const socket = io(SOCKET_URL, { auth: { token } });
+    // ensure a stable device id per browser
+    let deviceId = null;
+    try {
+      deviceId = localStorage.getItem('wchat_device_id');
+      if (!deviceId) {
+        deviceId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `d_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+        localStorage.setItem('wchat_device_id', deviceId);
+      }
+    } catch (err) { deviceId = null; }
+    const deviceLabel = (typeof navigator !== 'undefined' ? navigator.userAgent : 'browser');
+    const socket = io(SOCKET_URL, { auth: { token, deviceId, deviceLabel } });
     socketRef.current = socket;
     socket.on('new_message', (msg) => {
       console.debug('[socket] new_message received', { id: msg.id, forum_id: msg.forum_id, activeForumId, user_id: user?.id });
@@ -284,6 +294,12 @@ export default function ChatPage() {
     });
     socket.on('forum_preview_updated', (payload) => {
       applyForumPreviewUpdate(payload);
+    });
+    socket.on('presence_update', (payload) => {
+      try {
+        if (!payload || !payload.user_id) return;
+        setForumMembers(prev => prev.map(m => (m.id === payload.user_id ? { ...m, is_online: !!payload.is_online, last_seen: payload.last_seen, last_closed_device_label: payload.last_closed_device_label } : m)));
+      } catch (err) {}
     });
     socket.on('message_deleted', ({ messageId }) =>
       setMessages(prev => prev.filter(m => m.id !== messageId))

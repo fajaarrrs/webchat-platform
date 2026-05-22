@@ -45,9 +45,16 @@ app.use('/api/users', userRoutes);
 // Socket.io — authenticate via JWT
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
+  // capture optional device info from client handshake
+  socket.handshake.auth.deviceId = socket.handshake.auth.deviceId || socket.handshake.query?.deviceId || null;
+  socket.handshake.auth.deviceLabel = socket.handshake.auth.deviceLabel || socket.handshake.query?.deviceLabel || null;
   if (!token) return next(new Error('Unauthorized'));
   try {
     socket.user = jwt.verify(token, JWT_SECRET);
+    // expose device info to socket instance for later use
+    socket.data = socket.data || {};
+    socket.data.deviceId = socket.handshake.auth.deviceId || null;
+    socket.data.deviceLabel = socket.handshake.auth.deviceLabel || null;
     next();
   } catch {
     next(new Error('Token tidak valid.'));
@@ -56,6 +63,34 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   console.log(`🟢 Connected: ${socket.user.username} (${socket.id})`);
+
+  // Upsert device presence on connect
+  try {
+    const deviceId = socket.data?.deviceId || null;
+    const deviceLabel = socket.data?.deviceLabel || null;
+    if (deviceId) {
+      db.prepare(`
+        INSERT INTO presence_devices (device_id, user_id, label, is_online, last_seen)
+        VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(device_id) DO UPDATE SET
+          user_id=excluded.user_id,
+          label=excluded.label,
+          is_online=1,
+          last_seen=CURRENT_TIMESTAMP
+      `).run(deviceId, socket.user.id, deviceLabel);
+    }
+
+    // Broadcast presence update to all forums the user is member of and globally
+    const isOnline = 1;
+    const lastSeen = db.prepare('SELECT last_seen FROM users WHERE id = ?').get(socket.user.id)?.last_seen || null;
+    const lastClosed = db.prepare('SELECT label FROM presence_devices WHERE user_id = ? AND last_closed_at IS NOT NULL ORDER BY last_closed_at DESC LIMIT 1').get(socket.user.id);
+    const payload = { user_id: socket.user.id, is_online: !!isOnline, last_seen: lastSeen, last_closed_device_label: lastClosed?.label || null };
+    const forums = db.prepare('SELECT forum_id FROM forum_members WHERE user_id = ?').all(socket.user.id);
+    forums.forEach(f => io.to(`forum:${f.forum_id}`).emit('presence_update', payload));
+    io.emit('presence_update', payload);
+  } catch (err) {
+    console.error('Presence upsert error:', err);
+  }
 
   const canAccessForum = (forumId) => {
     if (socket.user.role === 'admin') return true;
@@ -351,6 +386,24 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`🔴 Disconnected: ${socket.user.username}`);
+    try {
+      const deviceId = socket.data?.deviceId || null;
+      if (deviceId) {
+        db.prepare('UPDATE presence_devices SET is_online = 0, last_seen = CURRENT_TIMESTAMP, last_closed_at = CURRENT_TIMESTAMP WHERE device_id = ?')
+          .run(deviceId);
+      }
+      // update user's last_seen
+      db.prepare('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?').run(socket.user.id);
+
+      const lastClosed = db.prepare('SELECT label FROM presence_devices WHERE user_id = ? AND last_closed_at IS NOT NULL ORDER BY last_closed_at DESC LIMIT 1').get(socket.user.id);
+      const lastSeen = db.prepare('SELECT last_seen FROM users WHERE id = ?').get(socket.user.id)?.last_seen || null;
+      const payload = { user_id: socket.user.id, is_online: false, last_seen: lastSeen, last_closed_device_label: lastClosed?.label || null };
+      const forums = db.prepare('SELECT forum_id FROM forum_members WHERE user_id = ?').all(socket.user.id);
+      forums.forEach(f => io.to(`forum:${f.forum_id}`).emit('presence_update', payload));
+      io.emit('presence_update', payload);
+    } catch (err) {
+      console.error('Presence disconnect error:', err);
+    }
   });
 });
 

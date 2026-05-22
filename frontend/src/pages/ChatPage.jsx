@@ -558,38 +558,10 @@ export default function ChatPage() {
   // Position floating reaction containers next to the message bubble (align to bubble, not avatar)
   useEffect(() => {
     const updateReactionPositions = () => {
-      messages.forEach((m) => {
-        const parent = messageRefs.current[m.id];
-        const bubble = messageBubbleRefs.current[m.id];
-        const reactEl = messageReactionRefs.current[m.id];
-        if (!parent || !bubble || !reactEl) return;
-
-        try {
-          const parentRect = parent.getBoundingClientRect();
-          const bubbleRect = bubble.getBoundingClientRect();
-          const reactRect = reactEl.getBoundingClientRect();
-
-          let left;
-          const isMy = m.user_id === user?.id;
-          const offsetX = 6; // slight offset from bubble edge
-
-          if (isMy) {
-            // align reaction right edge with bubble right edge
-            left = bubbleRect.right - parentRect.left - reactRect.width + offsetX;
-          } else {
-            // align reaction left edge with bubble left edge
-            left = bubbleRect.left - parentRect.left + offsetX;
-          }
-
-          // clamp inside parent
-          left = Math.max(0, Math.min(left, parent.clientWidth - reactRect.width));
-          reactEl.style.left = `${left}px`;
-        } catch (err) {
-          // ignore measurement errors
-        }
-      });
+      // Positioning handled by CSS/inline styles in MessageList per-message (left/right anchored),
+      // so no JS-driven manual left positioning is required here. This avoids layout shifts
+      // and horizontal overflow when panels like Directory are open.
     };
-
     updateReactionPositions();
     window.addEventListener('resize', updateReactionPositions);
     return () => window.removeEventListener('resize', updateReactionPositions);

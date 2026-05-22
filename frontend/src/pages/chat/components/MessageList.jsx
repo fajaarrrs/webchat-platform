@@ -283,7 +283,7 @@ export default function MessageList({
                 </div>
               )}
 
-              <div className="max-w-[72%] md:max-w-[62%]" ref={(node) => { if (node) messageBubbleRefs.current[msg.id] = node; else delete messageBubbleRefs.current[msg.id]; }}>
+              <div className="max-w-[72%] md:max-w-[62%]" ref={(node) => { if (node) messageBubbleRefs.current[msg.id] = node; else delete messageBubbleRefs.current[msg.id]; }} style={{ position: 'relative' }}>
                 {showSender && (
                   <div className="mb-1 pl-0.5">
                     <div className="text-[13px] font-semibold text-slate-800">
@@ -563,7 +563,10 @@ export default function MessageList({
 
                   <div
                     ref={(node) => { if (node) messageReactionRefs.current[msg.id] = node; else delete messageReactionRefs.current[msg.id]; }}
-                    style={{ position: 'absolute', bottom: -14, zIndex: 50, display: 'flex', alignItems: 'center', gap: 6, left: 0 }}
+                    style={(() => {
+                      const base = { position: 'absolute', bottom: -30, zIndex: 50, display: 'flex', flexDirection: 'column', gap: 6 };
+                      return isMe ? { ...base, right: 0, alignItems: 'flex-end' } : { ...base, left: 0, alignItems: 'flex-start' };
+                    })()}
                   >
                     {(msg.reactions || []).map((r) => {
                       const reactedByMe = (msg.reacting_users || []).some((u) => u.userId === user?.id && u.emoji === r.emoji);
@@ -591,14 +594,15 @@ export default function MessageList({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 8,
-                                padding: '4px 8px',
-                                borderRadius: 6,
+                                padding: '6px 10px',
+                                borderRadius: 8,
                                 border: '1px solid #2563EB',
                                 background: reactedByMe ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.12)',
                                 color: '#111827',
                                 cursor: 'pointer',
                                 fontSize: 14,
                                 lineHeight: 1,
+                                boxShadow: '0 4px 10px rgba(2,6,23,0.04)'
                               }}
                               aria-label={`react-${r.emoji}`}
                             >

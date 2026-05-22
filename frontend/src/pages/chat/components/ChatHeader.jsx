@@ -43,10 +43,19 @@ export default function ChatHeader({
           {getInitials(activeForum?.title || '')}
         </div>
         <div>
-          <p className="m-0 text-sm font-bold text-slate-800">{activeForum?.title}</p>
-          <p className="m-0 flex items-center gap-1.5 text-xs">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="text-slate-500">Online</span>
+          <p
+            role="button"
+            onClick={() => handleOpenGroupInfo && handleOpenGroupInfo()}
+            className="m-0 text-sm font-bold text-slate-800 cursor-pointer"
+          >
+            {activeForum?.title}
+          </p>
+          <p
+            role="button"
+            onClick={() => handleOpenGroupInfo && handleOpenGroupInfo()}
+            className="m-0 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer"
+          >
+            <span className="text-slate-500">{activeForum?.project || ''}</span>
           </p>
         </div>
       </div>

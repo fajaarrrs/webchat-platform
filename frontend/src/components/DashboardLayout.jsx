@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import useBreakpoint from '../hooks/useBreakpoint';
 import { useAuth } from '../context/AuthContext';
+import webcareLogo from '../assets/webcare-logo.webp';
 
 export default function DashboardLayout({ children, hideSidebar = false }) {
   const { user } = useAuth();
@@ -27,6 +28,7 @@ export default function DashboardLayout({ children, hideSidebar = false }) {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [menuOpen]);
+
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
@@ -65,7 +67,12 @@ export default function DashboardLayout({ children, hideSidebar = false }) {
             >
               <Menu size={18} />
             </button>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 5, background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <img src={webcareLogo} alt="Webcare" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2937' }}>WebcareChat</span>
+            </div>
             <div style={{ width: 36, height: 36 }} />
           </div>
         )}

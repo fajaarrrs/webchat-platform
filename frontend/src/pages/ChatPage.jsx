@@ -607,8 +607,51 @@ export default function ChatPage() {
       }
     }
 
-    // Prefer socket for realtime; fallback to HTTP API
+    // Prefer socket for realtime; apply optimistic update locally then emit, fallback to HTTP API
     if (socketRef.current && socketRef.current.connected) {
+      // Optimistic local update so UI reflects change immediately
+      setMessages(prev => prev.map(m => {
+        if (m.id !== messageId) return m;
+        const users = Array.isArray(m.reacting_users) ? [...m.reacting_users] : [];
+        const reactions = Array.isArray(m.reactions) ? [...m.reactions] : [];
+
+        const myExistingIndex = users.findIndex(u => u.userId === user?.id);
+        if (isRemoval) {
+          // remove my reaction
+          if (myExistingIndex !== -1) users.splice(myExistingIndex, 1);
+          // decrement reaction count
+          const ri = reactions.findIndex(r => r.emoji === emoji);
+          if (ri !== -1) {
+            const nextCount = (reactions[ri].count || 0) - 1;
+            if (nextCount <= 0) reactions.splice(ri, 1);
+            else reactions[ri] = { ...reactions[ri], count: nextCount };
+          }
+        } else if (isChange) {
+          // change my reaction to new emoji
+          if (myExistingIndex !== -1) users[myExistingIndex] = { ...users[myExistingIndex], emoji };
+          // decrement old emoji count
+          const oldEmoji = existing.emoji;
+          const oldIdx = reactions.findIndex(r => r.emoji === oldEmoji);
+          if (oldIdx !== -1) {
+            const nextCount = (reactions[oldIdx].count || 0) - 1;
+            if (nextCount <= 0) reactions.splice(oldIdx, 1);
+            else reactions[oldIdx] = { ...reactions[oldIdx], count: nextCount };
+          }
+          // increment new emoji count
+          const newIdx = reactions.findIndex(r => r.emoji === emoji);
+          if (newIdx !== -1) reactions[newIdx] = { ...reactions[newIdx], count: (reactions[newIdx].count || 0) + 1 };
+          else reactions.push({ emoji, count: 1 });
+        } else {
+          // add new reaction
+          users.push({ userId: user?.id, username: user?.username, emoji });
+          const idx = reactions.findIndex(r => r.emoji === emoji);
+          if (idx !== -1) reactions[idx] = { ...reactions[idx], count: (reactions[idx].count || 0) + 1 };
+          else reactions.push({ emoji, count: 1 });
+        }
+
+        return { ...m, reacting_users: users, reactions };
+      }));
+
       socketRef.current.emit('toggle_reaction', { messageId, emoji });
       return;
     }
@@ -795,7 +838,7 @@ export default function ChatPage() {
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       handleSend(e);
     }
   };

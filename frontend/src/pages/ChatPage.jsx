@@ -64,12 +64,55 @@ export default function ChatPage() {
   const { isMobile } = useBreakpoint();
   const location = useLocation();
   const navigate = useNavigate();
-  const initialForumId = location.state?.forumId ?? null;
+
+  // Restore active forum from navigation state or persistent storage so
+  // refreshing the page keeps the same open forum.
+  const persistedActiveForumKey = user?.id ? `wchat_active_forum_${user.id}` : null;
+  let persistedActiveForum = null;
+  try {
+    if (persistedActiveForumKey) {
+      const raw = localStorage.getItem(persistedActiveForumKey);
+      if (raw) persistedActiveForum = Number(raw);
+    }
+  } catch (err) {}
+
+  const initialForumId = location.state?.forumId ?? persistedActiveForum ?? null;
   const isCompactChatLayout = user?.role === 'client' || user?.role === 'karyawan';
   const roleBasePath = user?.role ? `/${user.role}` : '';
 
   const [forums, setForums] = useState([]);
+  const [forumsVersion, setForumsVersion] = useState(0);
   const [activeForumId, setActiveForumId] = useState(initialForumId);
+
+  // Use a safe setter so only explicit user actions (clicks, joins, leaves)
+  // or initial load can switch the active forum. This prevents sockets or
+  // background updates from auto-opening another forum.
+  const setActiveForum = (id, { userInitiated = false } = {}) => {
+    if (userInitiated) {
+      setActiveForumId(id);
+      return;
+    }
+
+    // Non-user initiated: only set when there's no active forum yet or
+    // when clearing selection (null). This avoids auto-switching while
+    // the user is viewing a forum.
+    setActiveForumId((prev) => {
+      if (id === null) return null;
+      if (!prev) return id;
+      return prev;
+    });
+  };
+  // Helper to expose to child components for explicit user actions (clicks)
+  const setActiveForumUser = (id) => setActiveForum(id, { userInitiated: true });
+
+  // Persist active forum so a page refresh will restore it
+  useEffect(() => {
+    if (!persistedActiveForumKey) return;
+    try {
+      if (activeForumId) localStorage.setItem(persistedActiveForumKey, String(activeForumId));
+      else localStorage.removeItem(persistedActiveForumKey);
+    } catch (err) {}
+  }, [activeForumId, persistedActiveForumKey]);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [searchGroup, setSearchGroup] = useState('');
@@ -118,6 +161,8 @@ export default function ChatPage() {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  const [unreadBoundaryId, setUnreadBoundaryId] = useState(null);
+  const [unreadCountAtLoad, setUnreadCountAtLoad] = useState(0);
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
   const messageSearchInputRef = useRef(null);
@@ -148,7 +193,7 @@ export default function ChatPage() {
 
     setForums((prev) => {
       const updated = prev.map((forum) => (
-        forum.id === forumId
+        String(forum.id) === String(forumId)
           ? {
               ...forum,
               ...payload,
@@ -157,7 +202,11 @@ export default function ChatPage() {
           : forum
       ));
 
-      return sortForumsByActivity(updated);
+      const sorted = sortForumsByActivity(updated);
+      // clone objects to ensure React sees new references and re-renders
+      const cloned = sorted.map(f => ({ ...f }));
+      console.debug('[applyForumPreviewUpdate] forums after update', cloned);
+      return cloned;
     });
   };
 
@@ -167,7 +216,7 @@ export default function ChatPage() {
 
     setForums((prev) => {
       const updated = prev.map((forum) => {
-        if (forum.id !== forumId) return forum;
+        if (String(forum.id) !== String(forumId)) return forum;
         return {
           ...forum,
           last_message: message?.content ?? '',
@@ -180,7 +229,8 @@ export default function ChatPage() {
         };
       });
 
-      return sortForumsByActivity(updated);
+      const sorted = sortForumsByActivity(updated);
+      return sorted.map(f => ({ ...f }));
     });
   };
 
@@ -189,20 +239,48 @@ export default function ChatPage() {
     const socket = io(SOCKET_URL, { auth: { token } });
     socketRef.current = socket;
     socket.on('new_message', (msg) => {
+      console.debug('[socket] new_message received', { id: msg.id, forum_id: msg.forum_id, activeForumId, user_id: user?.id });
+      const atBottom = isAtBottomRef.current;
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev;
         const next = [...prev, msg];
         // If user is at bottom, keep view pinned to bottom
-        if (isAtBottomRef.current) {
+        if (atBottom) {
           // scroll after render
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         } else {
           // user scrolled up: increment unseen count and don't force scroll
-          setNewMessageCount((c) => c + 1);
+          // Only count messages from other users (not our own)
+          if (msg.user_id !== user?.id) {
+            console.debug('[socket] incrementing local new message counters for message', msg.id);
+            setNewMessageCount((c) => c + 1);
+            setUnreadCountAtLoad((c) => c + 1);
+            // if we don't have an unread boundary yet, set it to this first new message
+            setUnreadBoundaryId((prev) => prev || msg.id);
+          }
         }
-        syncForumPreview(msg);
         return next;
       });
+
+      // Update forum preview/unread outside of setMessages to avoid batching
+      syncForumPreview(msg);
+      if (msg.forum_id && String(msg.forum_id) !== String(activeForumId) && msg.user_id !== user?.id) {
+        console.debug('[socket] updating forum unread_count/preview for forum', msg.forum_id);
+        setForums(prev => {
+          const before = prev.find(f => String(f.id) === String(msg.forum_id));
+          const updated = prev.map(f => {
+            if (String(f.id) !== String(msg.forum_id)) return f;
+            const prevCount = Number(f.unread_count || 0);
+            return { ...f, unread_count: prevCount + 1, last_message: msg.content || '', last_activity: msg.created_at, last_sender_id: msg.user_id, last_sender_username: msg.username };
+          });
+          const after = updated.find(f => String(f.id) === String(msg.forum_id));
+          console.debug('[socket] forum before->after', { before, after });
+          const sorted = sortForumsByActivity(updated);
+          const cloned = sorted.map(f => ({ ...f }));
+          console.debug('[socket] forums after unread update', cloned);
+          return cloned;
+        });
+      }
     });
     socket.on('forum_preview_updated', (payload) => {
       applyForumPreviewUpdate(payload);
@@ -241,6 +319,22 @@ export default function ChatPage() {
       isAtBottomRef.current = atBottom;
       setIsAtBottom(atBottom);
       if (atBottom) setNewMessageCount(0);
+      // If there's an unread boundary, detect if it's now visible and clear unread marker
+      if (unreadBoundaryId) {
+        try {
+          const node = messageRefs.current[unreadBoundaryId];
+          if (node && node.getBoundingClientRect) {
+            const rect = node.getBoundingClientRect();
+            const containerRect = el.getBoundingClientRect();
+            const visible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
+            if (visible) {
+              setUnreadBoundaryId(null);
+              setUnreadCountAtLoad(0);
+              setNewMessageCount(0);
+            }
+          }
+        } catch (err) {}
+      }
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     // initial check
@@ -250,8 +344,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     api.get('/forums').then(data => {
-      setForums(sortForumsByActivity(data));
-      if (!initialForumId && data.length > 0 && !isMobile) setActiveForumId(data[0].id);
+      const next = sortForumsByActivity(data).map(f => ({ ...f }));
+      setForums(next);
+      setForumsVersion(v => v + 1);
+      if (!initialForumId && data.length > 0 && !isMobile) setActiveForum(data[0].id, { userInitiated: true });
     });
   }, [initialForumId, isMobile]);
 
@@ -320,7 +416,39 @@ export default function ChatPage() {
     setShowPinnedMenu(false);
     setJumpedMessageId(null);
     api.get(`/messages/${activeForumId}`)
-      .then(data => setMessages(data))
+      .then(data => {
+        setMessages(data);
+
+        // Clear unread count for this forum in the forum list (user opened it)
+        setForums(prev => prev.map(f => String(f.id) === String(activeForumId) ? { ...f, unread_count: 0 } : f));
+
+        // determine unread boundary based on forum.last_read_at (if available)
+        const forum = forums.find(f => f.id === activeForumId) || null;
+        const lastReadAt = forum?.last_read_at || null;
+        if (lastReadAt) {
+          // find first message after lastReadAt that was sent by another user
+          const idx = data.findIndex(m => parseUtcDate(m.created_at) > parseUtcDate(lastReadAt) && m.user_id !== user?.id);
+          if (idx !== -1) {
+            const boundaryId = data[idx].id;
+            setUnreadBoundaryId(boundaryId);
+            // count only messages after idx that are from other users
+            const unreadCount = data.slice(idx).filter(m => m.user_id !== user?.id).length;
+            setUnreadCountAtLoad(unreadCount);
+            // scroll to the boundary after render
+            setTimeout(() => {
+              const node = messageRefs.current[boundaryId];
+              if (node && node.scrollIntoView) node.scrollIntoView({ behavior: 'auto', block: 'center' });
+              else messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            }, 80);
+          } else {
+            // no unread: go to bottom
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 80);
+          }
+        } else {
+          // no last read info: go to bottom
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 80);
+        }
+      })
       .finally(() => setLoadingMsgs(false));
     api.get(`/forums/${activeForumId}/members`)
       .then(data => setForumMembers(data))
@@ -1005,7 +1133,7 @@ export default function ChatPage() {
       const data = await api.post(`/forums/join/${token}`);
       const updated = await api.get('/forums');
       setForums(updated);
-      setActiveForumId(data.forum_id);
+      setActiveForum(data.forum_id, { userInitiated: true });
       setShowJoinModal(false);
       setJoinLink('');
       addToast(`Berhasil gabung ke forum "${data.title}".`, 'success');
@@ -1242,8 +1370,8 @@ export default function ChatPage() {
       await api.delete(`/forums/${activeForumId}/leave`);
       const updated = await api.get('/forums');
       setForums(updated);
-      if (updated.length === 0) setActiveForumId(null);
-      else if (!updated.some(f => f.id === activeForumId)) setActiveForumId(updated[0].id);
+      if (updated.length === 0) setActiveForum(null, { userInitiated: true });
+      else if (!updated.some(f => f.id === activeForumId)) setActiveForum(updated[0].id, { userInitiated: true });
       addToast('Berhasil keluar dari grup.', 'success');
     } catch (err) {
       addToast(err.message || 'Gagal keluar dari grup.', 'error');
@@ -1395,7 +1523,7 @@ export default function ChatPage() {
 
         {/* LEFT PANEL */}
         {showForumListPanel && (
-          <ForumListPanel
+            <ForumListPanel
             isMobile={isMobile}
             user={user}
             searchGroup={searchGroup}
@@ -1406,7 +1534,7 @@ export default function ChatPage() {
             setShowQuickMenu={setShowQuickMenu}
             filteredForums={filteredForums}
             activeForumId={activeForumId}
-            setActiveForumId={setActiveForumId}
+            setActiveForumId={setActiveForumUser}
             favoriteForumIds={favoriteForumIds}
             formatForumActivityLabel={formatForumActivityLabel}
             getForumPreview={getForumPreview}
@@ -1436,7 +1564,7 @@ export default function ChatPage() {
               isMobile={isMobile}
               activeForum={activeForum}
               activeForumId={activeForumId}
-              setActiveForumId={setActiveForumId}
+              setActiveForumId={setActiveForumUser}
               forums={forums}
               handleHeaderSearchClick={handleHeaderSearchClick}
               showMessageSearch={showMessageSearch}
@@ -1516,6 +1644,8 @@ export default function ChatPage() {
               formatMessageGroupLabel={formatMessageGroupLabel}
               getJakartaDateKey={getJakartaDateKey}
               parseUtcDate={parseUtcDate}
+              unreadBoundaryId={unreadBoundaryId}
+              unreadCount={unreadCountAtLoad}
               isImageAttachment={isImageAttachment}
               getFileLabel={getFileLabel}
               getFileInfo={getFileInfo}

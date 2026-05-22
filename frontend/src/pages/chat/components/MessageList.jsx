@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Calendar, ChevronDown, Copy, Download, ImageIcon, Pin, PinOff, Reply, Trash2, CheckCheck, Smile, Pencil, Link2 } from 'lucide-react';
 import ReactionPicker from './ReactionPicker';
 import MessageDropdown from './MessageDropdown';
+import CollapsibleMessage from '../../../components/CollapsibleMessage';
 import { cn } from '../chatUtils';
 
 function renderMentions(text = '') {
@@ -88,6 +89,8 @@ export default function MessageList({
   canDelete,
   canEdit,
   baseUrl,
+  unreadBoundaryId,
+  unreadCount,
 }) {
   const [hoverUsers, setHoverUsers] = useState(null); // { messageId, emoji, rect }
   const pinnedMessages = messages.filter((m) => m.is_pinned);
@@ -199,6 +202,14 @@ export default function MessageList({
 
         return (
           <div key={msg.id}>
+            {/* Unread separator */}
+            {unreadBoundaryId === msg.id && (
+              <div className="my-2.5 flex justify-center">
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm">
+                  {unreadCount > 0 ? `${unreadCount} pesan belum dibaca` : 'Pesan belum dibaca'}
+                </span>
+              </div>
+            )}
             {showDateSeparator && (
               <div className="my-2.5 flex justify-center">
                 <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
@@ -486,7 +497,7 @@ export default function MessageList({
                       )}
                       {msg.content && !msg.is_event && (
                         <div className="mt-2 text-[13px]" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {renderMentions(msg.content)}
+                          <CollapsibleMessage id={msg.id} content={msg.content} isMe={isMe} renderMentions={renderMentions} />
                         </div>
                       )}
                     </div>
@@ -550,7 +561,7 @@ export default function MessageList({
                           </div>
                         </div>
                       ) : (
-                        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMentions(msg.content)}</div>
+                        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><CollapsibleMessage id={msg.id} content={msg.content} isMe={isMe} renderMentions={renderMentions} /></div>
                       )
                     )
                   )}

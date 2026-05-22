@@ -378,11 +378,6 @@ export default function MessageList({
                       </div>
 
                       <div className="border-t border-black/5 flex flex-col">
-                        {msg.event_call_link && (
-                          <a href={msg.event_call_link} target="_blank" rel="noreferrer" className="text-center text-[14px] font-semibold py-2.5 text-[#075e54] hover:bg-black/5 transition-colors no-underline border-b border-black/5 block">
-                            Join Call
-                          </a>
-                        )}
                         {(() => {
                           const canEditEvent = user?.role === 'admin' || msg.user_id === user?.id;
                           return canEditEvent ? (

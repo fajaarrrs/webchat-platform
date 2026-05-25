@@ -20,7 +20,7 @@ export default function JoinModal({ joinLink, setJoinLink, joinLoading, onSubmit
           <input
             value={joinLink}
             onChange={e => setJoinLink && setJoinLink(e.target.value)}
-            placeholder="Contoh: http://localhost:5173/chat/join/ab12cd34ef"
+            placeholder="https://..."
             autoFocus
             style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }}
             onFocus={e => e.target.style.borderColor = '#2563EB'}

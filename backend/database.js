@@ -143,6 +143,30 @@ function initDatabase() {
     db.exec('ALTER TABLE messages ADD COLUMN event_call_link TEXT');
   }
 
+  // Presence: per-device presence tracking
+  const userColumns = db.prepare('PRAGMA table_info(users)').all();
+  const hasUserColumn = (name) => userColumns.some((col) => col.name === name);
+  if (!hasUserColumn('last_seen')) {
+    try {
+      db.exec('ALTER TABLE users ADD COLUMN last_seen DATETIME');
+    } catch (err) {
+      // ignore migration errors
+    }
+  }
+
+  // Create presence_devices table if missing
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS presence_devices (
+      device_id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      label TEXT,
+      is_online INTEGER NOT NULL DEFAULT 0,
+      last_seen DATETIME,
+      last_closed_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
   // Ensure legacy seeded admin account is migrated to the latest default credentials.
   const legacyAdmin = db
     .prepare("SELECT id, email FROM users WHERE role = 'admin' AND username = ?")

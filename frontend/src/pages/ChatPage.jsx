@@ -236,7 +236,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('wchat_token');
-    const socket = io(SOCKET_URL, { auth: { token } });
+    // ensure a stable device id per browser
+    let deviceId = null;
+    try {
+      deviceId = localStorage.getItem('wchat_device_id');
+      if (!deviceId) {
+        deviceId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `d_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+        localStorage.setItem('wchat_device_id', deviceId);
+      }
+    } catch (err) { deviceId = null; }
+    const deviceLabel = (typeof navigator !== 'undefined' ? navigator.userAgent : 'browser');
+    const socket = io(SOCKET_URL, { auth: { token, deviceId, deviceLabel } });
     socketRef.current = socket;
     socket.on('new_message', (msg) => {
       console.debug('[socket] new_message received', { id: msg.id, forum_id: msg.forum_id, activeForumId, user_id: user?.id });
@@ -284,6 +294,12 @@ export default function ChatPage() {
     });
     socket.on('forum_preview_updated', (payload) => {
       applyForumPreviewUpdate(payload);
+    });
+    socket.on('presence_update', (payload) => {
+      try {
+        if (!payload || !payload.user_id) return;
+        setForumMembers(prev => prev.map(m => (m.id === payload.user_id ? { ...m, is_online: !!payload.is_online, last_seen: payload.last_seen, last_closed_device_label: payload.last_closed_device_label } : m)));
+      } catch (err) {}
     });
     socket.on('message_deleted', ({ messageId }) =>
       setMessages(prev => prev.filter(m => m.id !== messageId))
@@ -542,38 +558,10 @@ export default function ChatPage() {
   // Position floating reaction containers next to the message bubble (align to bubble, not avatar)
   useEffect(() => {
     const updateReactionPositions = () => {
-      messages.forEach((m) => {
-        const parent = messageRefs.current[m.id];
-        const bubble = messageBubbleRefs.current[m.id];
-        const reactEl = messageReactionRefs.current[m.id];
-        if (!parent || !bubble || !reactEl) return;
-
-        try {
-          const parentRect = parent.getBoundingClientRect();
-          const bubbleRect = bubble.getBoundingClientRect();
-          const reactRect = reactEl.getBoundingClientRect();
-
-          let left;
-          const isMy = m.user_id === user?.id;
-          const offsetX = 6; // slight offset from bubble edge
-
-          if (isMy) {
-            // align reaction right edge with bubble right edge
-            left = bubbleRect.right - parentRect.left - reactRect.width + offsetX;
-          } else {
-            // align reaction left edge with bubble left edge
-            left = bubbleRect.left - parentRect.left + offsetX;
-          }
-
-          // clamp inside parent
-          left = Math.max(0, Math.min(left, parent.clientWidth - reactRect.width));
-          reactEl.style.left = `${left}px`;
-        } catch (err) {
-          // ignore measurement errors
-        }
-      });
+      // Positioning handled by CSS/inline styles in MessageList per-message (left/right anchored),
+      // so no JS-driven manual left positioning is required here. This avoids layout shifts
+      // and horizontal overflow when panels like Directory are open.
     };
-
     updateReactionPositions();
     window.addEventListener('resize', updateReactionPositions);
     return () => window.removeEventListener('resize', updateReactionPositions);
@@ -1740,19 +1728,46 @@ export default function ChatPage() {
 
         {/* RIGHT PANEL — Directory */}
         {activeForum && showDirectory && (
-          <DirectoryPanel
-            activeForum={activeForum}
-            forumMembers={forumMembers}
-            user={user}
-            getInitials={getInitials}
-            getRoleColor={getRoleColor}
-            getRoleLabel={getRoleLabel}
-            getColor={getColor}
-            sharedFiles={sharedFiles}
-            getFileInfo={getFileInfo}
-            setShowDirectory={setShowDirectory}
-            baseUrl={BASE_URL}
-          />
+          isMobile ? (
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.28)', zIndex: 1200, display: 'flex', justifyContent: 'flex-end' }}
+              onClick={() => setShowDirectory(false)}
+            >
+              <div
+                style={{ width: '100%', maxWidth: 360, height: '100%', boxShadow: '0 12px 36px rgba(0,0,0,0.18)', background: 'transparent' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <DirectoryPanel
+                  overlay={true}
+                  activeForum={activeForum}
+                  forumMembers={forumMembers}
+                  user={user}
+                  getInitials={getInitials}
+                  getRoleColor={getRoleColor}
+                  getRoleLabel={getRoleLabel}
+                  getColor={getColor}
+                  sharedFiles={sharedFiles}
+                  getFileInfo={getFileInfo}
+                  setShowDirectory={setShowDirectory}
+                  baseUrl={BASE_URL}
+                />
+              </div>
+            </div>
+          ) : (
+            <DirectoryPanel
+              activeForum={activeForum}
+              forumMembers={forumMembers}
+              user={user}
+              getInitials={getInitials}
+              getRoleColor={getRoleColor}
+              getRoleLabel={getRoleLabel}
+              getColor={getColor}
+              sharedFiles={sharedFiles}
+              getFileInfo={getFileInfo}
+              setShowDirectory={setShowDirectory}
+              baseUrl={BASE_URL}
+            />
+          )
         )}
       </div>
 

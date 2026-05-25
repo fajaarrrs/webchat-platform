@@ -5,16 +5,27 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Configure VAPID keys (only if both keys are provided)
-const vapidPublic = process.env.VAPID_PUBLIC_KEY;
-const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+// Configure VAPID keys (use env when available, otherwise fall back to
+// safe development keys for local testing).
+let vapidPublic = process.env.VAPID_PUBLIC_KEY;
+let vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@webchat.com';
+
+// Development fallback keys (only for local/dev environments). These
+// are intentionally non-secret example keys to make local testing easier
+// after merges where env files may not be present.
+const DEV_VAPID_PUBLIC = 'BG3FGuFbZDku81FhXu3R9ZtbLW2rc4tMWagLfG8u7GOTLMSKqKnM50Kh31EUcOlj_IPDlmD-L9sQWmIhNvFCbBc';
+const DEV_VAPID_PRIVATE = '00L-0rakQhLSCP_UUFPg4BidTPZIy4-7MFI6qywOj_I';
+
+if ((!vapidPublic || !vapidPrivate) && process.env.NODE_ENV !== 'production') {
+  vapidPublic = vapidPublic || DEV_VAPID_PUBLIC;
+  vapidPrivate = vapidPrivate || DEV_VAPID_PRIVATE;
+  console.log('[PUSH] Using development VAPID keys for local testing');
+}
+
 if (vapidPublic && vapidPrivate) {
   try {
-    webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT || 'mailto:admin@webchat.com',
-      vapidPublic,
-      vapidPrivate
-    );
+    webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
     console.log('[PUSH] VAPID keys configured');
   } catch (err) {
     console.error('[PUSH] Failed to set VAPID details:', err.message || err);
@@ -31,10 +42,14 @@ router.post('/subscribe', authenticate, (req, res) => {
       return res.status(400).json({ error: 'Invalid subscription object' });
     }
 
+    console.log('[PUSH-SUBSCRIBE] User', req.user.id, 'subscribing with endpoint:', subscription.endpoint);
     // Store subscription in database
     db.prepare(
       'INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)'
     ).run(req.user.id, JSON.stringify(subscription));
+
+    const count = db.prepare('SELECT COUNT(*) AS c FROM push_subscriptions WHERE user_id = ?').get(req.user.id).c;
+    console.log(`[PUSH-SUBSCRIBE] Now ${count} subscription(s) for user ${req.user.id}`);
 
     res.json({ success: true, message: 'Subscribed to push notifications' });
   } catch (err) {
@@ -51,10 +66,14 @@ router.post('/unsubscribe', authenticate, (req, res) => {
       return res.status(400).json({ error: 'Invalid subscription object' });
     }
 
+    console.log('[PUSH-UNSUBSCRIBE] User', req.user.id, 'unsubscribing endpoint:', subscription.endpoint);
     // Remove subscription from database
     db.prepare(
       'DELETE FROM push_subscriptions WHERE user_id = ? AND subscription = ?'
     ).run(req.user.id, JSON.stringify(subscription));
+
+    const count = db.prepare('SELECT COUNT(*) AS c FROM push_subscriptions WHERE user_id = ?').get(req.user.id).c;
+    console.log(`[PUSH-UNSUBSCRIBE] Now ${count} subscription(s) for user ${req.user.id}`);
 
     res.json({ success: true, message: 'Unsubscribed from push notifications' });
   } catch (err) {

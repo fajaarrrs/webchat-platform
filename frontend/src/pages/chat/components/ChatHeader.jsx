@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, MoreVertical, Search, Info, Link2, Star, Eraser, LogOut, HelpCircle } from 'lucide-react';
+import { ChevronLeft, MoreVertical, Search, Info, Link2, Star, Eraser, LogOut, CheckSquare, HelpCircle } from 'lucide-react';
 import { cn, getInitials, getColor } from '../chatUtils';
 
 export default function ChatHeader({
@@ -21,6 +21,7 @@ export default function ChatHeader({
   handleOpenSettings,
   handleOpenJoinModal,
   handleOpenFaq,
+  handleOpenTasks,
   handleOpenGroupInfo,
   handleLogout,
 }) {
@@ -91,6 +92,7 @@ export default function ChatHeader({
             <div style={{ position: 'absolute', top: 40, right: 0, width: 220, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 120 }}>
               {[
                 { key: 'info', label: 'Grup Info', icon: Info, onClick: () => { handleOpenGroupInfo && handleOpenGroupInfo(); setShowHeaderMenu(false); } },
+                { key: 'tasks', label: 'Tasks', icon: CheckSquare, onClick: () => { handleOpenTasks && handleOpenTasks(); setShowHeaderMenu(false); } },
                 { key: 'share-link', label: 'Share link', icon: Link2, onClick: handleShareForumLink },
                 { key: 'favorite', label: isActiveForumFavorite ? 'Remove from favorites' : 'Add to favorites', icon: Star, onClick: () => { toggleFavoriteForum && toggleFavoriteForum(activeForumId); setShowHeaderMenu(false); } },
                 { key: 'faq', label: 'FAQ', icon: HelpCircle, onClick: () => { handleOpenFaq && handleOpenFaq(); setShowHeaderMenu(false); } },

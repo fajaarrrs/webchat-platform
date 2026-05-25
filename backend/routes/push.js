@@ -5,12 +5,23 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Configure VAPID keys
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:admin@webchat.com',
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+// Configure VAPID keys (only if both keys are provided)
+const vapidPublic = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+if (vapidPublic && vapidPrivate) {
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:admin@webchat.com',
+      vapidPublic,
+      vapidPrivate
+    );
+    console.log('[PUSH] VAPID keys configured');
+  } catch (err) {
+    console.error('[PUSH] Failed to set VAPID details:', err.message || err);
+  }
+} else {
+  console.warn('[PUSH] VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY not set — push notifications disabled');
+}
 
 // POST /api/push/subscribe — subscribe user to push notifications
 router.post('/subscribe', authenticate, (req, res) => {

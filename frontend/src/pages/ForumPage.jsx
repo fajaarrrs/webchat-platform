@@ -19,6 +19,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
+import './ForumPage.css';
 
 const forumColors = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#0891B2', '#BE185D'];
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
@@ -339,20 +340,11 @@ export default function ForumPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => setViewMode('grid')}
-                  style={toggleButtonStyle(viewMode === 'grid')}
-                  title="Grid view"
+                  onClick={() => setViewMode((v) => (v === 'grid' ? 'list' : 'grid'))}
+                  style={toggleButtonStyle(true)}
+                  title={viewMode === 'grid' ? 'Grid view (click to change to list)' : 'List view (click to change to grid)'}
                 >
-                  <LayoutGrid size={16} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewMode('list')}
-                  style={toggleButtonStyle(viewMode === 'list')}
-                  title="List view"
-                >
-                  <List size={16} />
+                  {viewMode === 'grid' ? <LayoutGrid size={16} /> : <List size={16} />}
                 </button>
               </div>
             </div>
@@ -433,6 +425,7 @@ export default function ForumPage() {
                   key={forum.id}
                   type="button"
                   onClick={() => handleOpenChat(forum)}
+                  className="forum-card forum-grid-item"
                   style={{
                     ...cardBase,
                     padding: 0,
@@ -440,6 +433,7 @@ export default function ForumPage() {
                     cursor: 'pointer',
                     overflow: 'hidden',
                     borderTop: `4px solid ${accent}`,
+                    borderLeft: `6px solid ${accent}`,
                     transition: 'transform 0.18s ease, box-shadow 0.18s ease',
                     background: '#fff',
                   }}
@@ -501,8 +495,8 @@ export default function ForumPage() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, color: '#9CA3AF', fontSize: 11, flexShrink: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Clock size={11} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="online-dot" />
                           <strong style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF' }}>Aktif terakhir:</strong>
                           <span style={{ marginLeft: 6 }}>{formatRelative(forum.last_activity)}</span>
                         </div>
@@ -516,7 +510,7 @@ export default function ForumPage() {
                       <h3
                         style={{
                           fontSize: 18,
-                          fontWeight: 800,
+                          fontWeight: 600,
                           color: '#1F2937',
                           margin: '0 0 6px',
                           lineHeight: 1.3,
@@ -549,7 +543,7 @@ export default function ForumPage() {
                             gap: 5,
                           }}
                         >
-                          <Users size={12} /> {forum.member_count ?? 0} anggota
+                          <Users size={12} /> <strong>{forum.member_count ?? 0}</strong>&nbsp;anggota
                         </span>
 
                         <span
@@ -561,7 +555,7 @@ export default function ForumPage() {
                             gap: 5,
                           }}
                         >
-                          <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
+                          <MessageSquare size={12} /> <strong>{forum.message_count ?? 0}</strong>&nbsp;pesan
                         </span>
                       </div>
 
@@ -590,6 +584,7 @@ export default function ForumPage() {
 
                   type="button"
                   onClick={() => handleOpenChat(forum)}
+                  className="forum-card forum-list-item"
                   style={{
                     ...cardBase,
                     padding: 18,
@@ -606,29 +601,31 @@ export default function ForumPage() {
                   <div className="forum-card-header">
                     <span 
                       className="forum-badge"
-                      style={{ background: `${accent}18`, color: accent }}
+                      style={{ background: 'transparent', color: accent }}
                     >
-                      {forum.project}
+                      <span className="project-name">{forum.project}</span>
                     </span>
 
-                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <Clock size={11} /> <strong style={{ fontSize: 11, fontWeight: 600 }}>Aktif terakhir:</strong>&nbsp;{formatRelative(forum.last_activity)}
+                    <span style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span className="online-dot" /> <strong style={{ fontSize: 11, fontWeight: 600 }}>Aktif terakhir:</strong>&nbsp;{formatRelative(forum.last_activity)}
 
                     </span>
                   </div>
 
                   <h3 className="forum-card-title">{forum.title}</h3>
                   
-                  <p className="forum-card-desc">
+                  <p className={`forum-card-desc ${!forum.description ? 'is-empty' : ''}`}>
                     {forum.description || <em>Tidak ada deskripsi.</em>}
                   </p>
 
                   <div className="forum-card-footer">
                     <span className="forum-stat">
-                      <Users size={12} /> {forum.member_count ?? 0} anggota
+                      <span className="stat-icon stat-members"><Users size={14} /></span>
+                      <strong>{forum.member_count ?? 0}</strong>&nbsp;anggota
                     </span>
                     <span className="forum-stat">
-                      <MessageSquare size={12} /> {forum.message_count ?? 0} pesan
+                      <span className="stat-icon stat-messages"><MessageSquare size={14} /></span>
+                      <strong>{forum.message_count ?? 0}</strong>&nbsp;pesan
                     </span>
 
                     <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }}>

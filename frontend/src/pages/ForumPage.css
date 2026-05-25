@@ -93,10 +93,10 @@
 /* Card Styling */
 .forum-card {
   background: #fff;
-  border-radius: 14px;
-  padding: 22px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 6px 24px rgba(15,23,42,0.06);
+  border: 1px solid #E8EEF6;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
@@ -110,20 +110,54 @@
 .forum-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 10px;
-  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 12px;
 }
 
 .forum-badge {
-  font-size: 11px;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
   font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 99px;
-  max-width: 160px;
+  padding: 0;
+  border-radius: 6px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forum-badge .project-name {
+  text-decoration: none !important;
+  font-weight: 700;
+  background: transparent;
+  color: inherit;
+}
+
+/* Online dot to replace clock icon */
+.online-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #10B981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.08);
+}
+
+/* Ensure project name has no underline anywhere */
+.project-name, .forum-badge .project-name {
+  text-decoration: none !important;
+}
+
+/* Slight left offset so content doesn't sit on top of the accent border in list view */
+.forum-card-header,
+.forum-card-title,
+.forum-card-desc,
+.forum-card-footer {
+  margin-left: 6px;
 }
 
 .forum-time {
@@ -136,42 +170,226 @@
 }
 
 .forum-card-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #1F2937;
-  margin-bottom: 6px;
-  margin-top: 0;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 6px 0 8px 0;
+  line-height: 1.2;
 }
 
 .forum-card-desc {
-  font-size: 13px;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
   color: #6B7280;
-  margin-bottom: 14px;
-  line-height: 1.5;
-  min-height: 38px;
-  flex-grow: 1;
+  margin: 8px 0 14px 0;
+  line-height: 1.4;
+  min-height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+/* Reduce spacing when description is only the placeholder */
+.forum-card-desc.is-empty {
+  margin-bottom: 6px;
+  min-height: 0;
+  color: #6B7280;
+  font-style: italic;
+}
+
+.forum-list-item .forum-card-desc.is-empty {
+  margin-bottom: 6px;
+  max-width: 72%;
 }
 
 .forum-card-footer {
   display: flex;
-  gap: 16px;
-  border-top: 1px solid #F3F4F6;
-  padding-top: 12px;
-  flex-wrap: wrap; /* Allows wrapping on very small screens */
+  gap: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #F1F5F9;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .forum-stat {
-  font-size: 12px;
-  color: #6B7280;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: #475569;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .forum-date {
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   color: #9CA3AF;
   margin-left: auto;
+}
+
+/* List item specific tweaks */
+.forum-list-item {
+  padding-left: 28px; /* breathing room from accent border */
+  padding-right: 22px;
+}
+
+.forum-list-item .forum-card-header {
+  align-items: flex-start;
+}
+
+.forum-list-item .forum-badge {
+  font-size: 14px;
+  padding: 0;
+  background: transparent;
+  display: block;
+  margin: 0 0 8px 0;
+  text-decoration: none;
+  font-weight: 700;
+  color: inherit; /* use inline color */
+}
+
+.forum-list-item .forum-card-title {
+  font-size: 20px;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.12;
+}
+
+.forum-list-item .forum-card-desc {
+  font-size: 13px;
+  color: #6B7280;
+  margin-bottom: 12px;
+  font-style: italic;
+  max-width: 72%;
+}
+
+/* make the time/meta smaller and muted, aligned under project badge */
+.forum-list-item .forum-time {
+  font-size: 12px;
+  color: #9CA3AF;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Stats: emphasize numeric values */
+.forum-list-item .forum-stat {
+  font-size: 14px;
+  color: #475569;
+  gap: 10px;
+  align-items: center;
+}
+.forum-list-item .forum-stat b, .forum-list-item .forum-stat strong {
+  font-weight: 400 !important; /* reduce weight - counts not bold */
+  color: #0f172a;
+  font-size: 15px;
+}
+
+/* Stat icon backgrounds */
+.forum-list-item .forum-stat .stat-icon {
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  background: transparent !important;
+}
+.forum-list-item .forum-stat .stat-members {
+  color: #7c3aed; /* purple icon color */
+}
+.forum-list-item .forum-stat .stat-messages {
+  color: #10b981; /* green icon color */
+}
+
+/* Slightly reduce gap between stat number and label */
+.forum-list-item .forum-stat strong + span,
+.forum-list-item .forum-stat strong + * {
+  margin-left: 4px;
+}
+
+/* ensure footer is not cramped */
+.forum-list-item .forum-card-footer {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 20px;
+  column-gap: 28px;
+}
+
+/* Make list view (cards with left accent) look cleaner: slightly tighter spacing */
+.forum-card[style] {
+  /* list view buttons use inline styles (including borderLeft) so target via presence of inline style attribute */
+  padding: 24px; /* keep same padding as normal card */
+  border-left-width: 6px !important; /* make accent strip thicker for list view */
+  border-left-style: solid !important;
+  /* color is set inline via style attr on each card, leave it */
+}
+
+/* Color the stat icons to match design (members purple, messages green) */
+.forum-list-item .forum-card-footer .forum-stat:nth-child(1) svg {
+  color: #7c3aed; /* purple */
+}
+.forum-list-item .forum-card-footer .forum-stat:nth-child(2) svg {
+  color: #10b981; /* emerald */
+}
+
+/* project badge should not be underlined (keep plain text) */
+.forum-list-item .forum-badge {
+  text-decoration: none !important;
+}
+
+/* For list view ensure the created date aligns right in the third column */
+.forum-list-item .forum-card-footer > span:last-child {
+  justify-self: end;
+  color: #9CA3AF;
+  font-size: 12px;
+}
+
+/* Make the stat items (icon + number) compact and vertically centered */
+.forum-list-item .forum-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forum-list-item .forum-stat strong {
+  font-weight: 400 !important;
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+/* Also ensure grid view counts are not bold */
+.forum-card .forum-stat strong,
+.forum-grid-item .forum-stat strong {
+  font-weight: 400 !important;
+}
+
+/* Force layout in case other rules override */
+.forum-card.forum-list-item > .forum-card-footer,
+.forum-list-item .forum-card-footer {
+  display: grid !important;
+  grid-template-columns: auto auto 1fr !important;
+  align-items: center !important;
+}
+
+.forum-card.forum-list-item > .forum-card-footer > span,
+.forum-list-item .forum-card-footer > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Remove any inline margin-left on the date span and force it to the right column */
+.forum-card.forum-list-item > .forum-card-footer > span[style],
+.forum-list-item .forum-card-footer > span[style] {
+  margin-left: 0 !important;
+  justify-self: end !important;
 }
 
 

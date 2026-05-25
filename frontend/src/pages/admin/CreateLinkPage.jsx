@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import './CreateLinkPage.css';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 import { Plus, Copy, Trash2, Link2, ExternalLink, Search, FolderOpen, Pencil } from 'lucide-react';
@@ -474,11 +475,11 @@ export default function CreateLinkPage() {
         </div>
       </div>
       {editLink && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.4)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <form onSubmit={handleUpdate} style={{ width: isMobile ? '94%' : '640px', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 50px rgba(2,6,23,0.2)' }}>
+        <div className="edit-link-backdrop">
+          <form onSubmit={handleUpdate} className="edit-link-form">
             <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18 }}>Edit Link</h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: `1fr 1fr`, gap: 12 }}>
+            <div className="edit-link-grid">
               <div>
                 <label className="form-label">Judul Link <span>*</span></label>
                 <input
@@ -507,12 +508,11 @@ export default function CreateLinkPage() {
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={() => setEditLink(null)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer' }}>Batal</button>
-              <button type="submit" disabled={editLoading} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer' }}>{editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+            <div className="form-actions">
+              <button type="button" onClick={() => setEditLink(null)} className="btn-secondary">Batal</button>
+              <button type="submit" disabled={editLoading} className="btn-primary">{editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
             </div>
-            <div style={{ marginTop: 10, fontSize: 12, color: '#6B7280' }}>Catatan: Jika Anda mengubah Judul, token/link akan otomatis diperbarui sesuai judul baru.</div>
+            <div className="note">Catatan: Jika Anda mengubah Judul, token/link akan otomatis diperbarui sesuai judul baru.</div>
           </form>
         </div>
       )}

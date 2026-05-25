@@ -345,7 +345,14 @@ export default function MessageList({
                     </div>
                   )}
 
-                  {!!msg.is_event ? (
+                  {!!msg.is_deleted_by_admin ? (
+                    <div className={cn(
+                      'py-3 px-3.5 text-center text-sm italic',
+                      isMe ? 'text-white/60' : 'text-slate-500'
+                    )}>
+                      Pesan ini dihapus oleh admin
+                    </div>
+                  ) : !!msg.is_event ? (
                     <div className="flex flex-col">
                       <div className="px-3.5 pt-3 pb-2">
                         <div className="flex items-start gap-3">

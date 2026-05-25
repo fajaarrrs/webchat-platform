@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { api, BASE_URL } from '../api';
 import {
   ArrowLeft,
   BadgeCheck,
+  Bell,
+  BellOff,
   Camera,
   Eye,
   EyeOff,
@@ -70,6 +73,8 @@ export default function SettingsPage() {
     : 'profile';
 
   const { user, updateProfile, uploadAvatar, deleteAvatar, addToast } = useAuth();
+  const { isSupported: isPushSupported, isSubscribed, toggleSubscription } = usePushNotifications();
+  const [pushToggling, setPushToggling] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const [profileForm, setProfileForm] = useState({ username: user?.username || '', email: user?.email || '' });
   const [passForm, setPassForm] = useState({ newPass: '', confirm: '' });
@@ -180,6 +185,24 @@ export default function SettingsPage() {
     setAvatarUploading(true);
     await deleteAvatar();
     setAvatarUploading(false);
+  };
+
+  const handleTogglePushNotifications = async () => {
+    setPushToggling(true);
+    try {
+      const result = await toggleSubscription();
+      if (result) {
+        addToast(
+          isSubscribed ? 'Push notifications disabled' : 'Push notifications enabled',
+          'success'
+        );
+      } else {
+        addToast('Failed to toggle push notifications', 'error');
+      }
+    } catch (err) {
+      addToast(err.message || 'Error toggling push notifications', 'error');
+    }
+    setPushToggling(false);
   };
   
   const handleEditUser = async (e) => {
@@ -325,6 +348,32 @@ export default function SettingsPage() {
                       )}
                     </div>
                   </div>
+
+                  {isPushSupported && (
+                    <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {isSubscribed ? <Bell size={18} className="text-blue-600" /> : <BellOff size={18} className="text-slate-400" />}
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Push Notifications</p>
+                            <p className="text-xs text-slate-600">Receive notifications for mentions and important updates</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleTogglePushNotifications}
+                          disabled={pushToggling}
+                          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+                            isSubscribed
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-white border border-blue-300 text-blue-600 hover:bg-blue-50'
+                          } disabled:opacity-60 disabled:cursor-not-allowed`}
+                        >
+                          {pushToggling ? 'Updating...' : isSubscribed ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
                     <button type="submit" disabled={saving} className={primaryButtonClass}>

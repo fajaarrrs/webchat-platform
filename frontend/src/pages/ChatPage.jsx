@@ -3,9 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import DashboardLayout from '../components/DashboardLayout';
 import CreateEventModal from '../components/CreateEventModal';
+import PushNotificationModal from '../components/PushNotificationModal';
 import { useAuth } from '../context/AuthContext';
 import { api, BASE_URL } from '../api';
 import useBreakpoint from '../hooks/useBreakpoint';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import ForumListPanel from './chat/components/ForumListPanel';
 import MessageList from './chat/components/MessageList';
 import ChatInput from './chat/components/ChatInput';
@@ -63,6 +65,12 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 export default function ChatPage() {
   const { user, addToast, logout } = useAuth();
   const { isMobile } = useBreakpoint();
+  const { 
+    showPermissionModal, 
+    setShowPermissionModal, 
+    requestNotificationPermission 
+  } = usePushNotifications();
+  const [pushModalLoading, setPushModalLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const initialForumId = location.state?.forumId ?? null;
@@ -1664,6 +1672,25 @@ export default function ChatPage() {
 
       {/* Task Slider */}
       <TaskSlider isOpen={showTaskSlider} onClose={() => setShowTaskSlider(false)} forumId={activeForumId} />
+
+      {/* Push Notification Permission Modal */}
+      <PushNotificationModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        onEnable={async () => {
+          setPushModalLoading(true);
+          const result = await requestNotificationPermission();
+          setPushModalLoading(false);
+          if (result) {
+            setShowPermissionModal(false);
+            addToast('Push notifications enabled!', 'success');
+          } else {
+            addToast('Failed to enable notifications', 'error');
+          }
+        }}
+        onDisable={() => setShowPermissionModal(false)}
+        isLoading={pushModalLoading}
+      />
     </DashboardLayout>
   );
 }

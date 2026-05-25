@@ -93,6 +93,14 @@ function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      subscription TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // Lightweight migrations for existing databases.
@@ -152,6 +160,12 @@ function initDatabase() {
   }
   if (!hasColumn('event_call_link')) {
     db.exec('ALTER TABLE messages ADD COLUMN event_call_link TEXT');
+  }
+  if (!hasColumn('is_deleted_by_admin')) {
+    db.exec('ALTER TABLE messages ADD COLUMN is_deleted_by_admin INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!hasColumn('deleted_by_admin_at')) {
+    db.exec('ALTER TABLE messages ADD COLUMN deleted_by_admin_at DATETIME');
   }
 
   const taskColumns = db.prepare('PRAGMA table_info(tasks)').all();

@@ -12,6 +12,8 @@ const forumRoutes = require('./routes/forums');
 const messageRoutes = require('./routes/messages');
 const userRoutes = require('./routes/users');
 const taskRoutes = require('./routes/tasks');
+const pushRoutes = require('./routes/push');
+const { sendPushToUser } = require('./routes/push');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +28,122 @@ const io = new Server(server, {
 
 // Pass io to routes that need it
 messageRoutes.setIo(io);
+
+// Helper function to detect mentions (@username or @"full name") in message content
+function extractMentions(content) {
+  if (!content) return [];
+  
+  // Match two patterns:
+  // 1. @"full name with spaces" (quoted)
+  // 2. @username_without_spaces
+  const mentionRegex = /@"([^"]+)"|@(\S+)/g;
+  const matches = [];
+  let match;
+  
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // match[1] = quoted name, match[2] = unquoted name
+    const mentionedName = match[1] || match[2];
+    if (mentionedName && !matches.includes(mentionedName)) {
+      matches.push(mentionedName);
+    }
+  }
+  
+  console.log(`[MENTION] Extracted mentions from "${content}": ${JSON.stringify(matches)}`);
+  return matches;
+}
+
+// Helper function to send push notifications to mentioned users
+async function sendMentionNotifications(messageContent, forumId, senderUsername, senderId) {
+  const mentionedUsernames = extractMentions(messageContent);
+  console.log(`[PUSH] sendMentionNotifications called - Mentioned: ${JSON.stringify(mentionedUsernames)}, Sender: ${senderUsername}`);
+  if (mentionedUsernames.length === 0) {
+    console.log('[PUSH] No mentions found, skipping push notifications');
+    return;
+  }
+
+  const forumName = db.prepare('SELECT title FROM forums WHERE id = ?').get(forumId)?.title || 'a forum';
+  console.log(`[PUSH] Forum: ${forumName}`);
+
+  for (const username of mentionedUsernames) {
+    const user = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    console.log(`[PUSH] Looking for user: ${username} - Found: ${user ? `ID=${user.id}` : 'NOT FOUND'}`);
+    if (!user || user.id === senderId) {
+      console.log(`[PUSH] Skipping user ${username} (not found or is sender)`);
+      continue;
+    }
+
+    console.log(`[PUSH] Sending push to user ${username} (ID: ${user.id})`);
+    const payload = {
+      title: `Mentioned by ${senderUsername}`,
+      body: `You were mentioned in ${forumName}`,
+      icon: '/webcare-logo.webp',
+      badge: '/webcare-logo.webp',
+      tag: `mention-${messageContent.substring(0, 50)}`,
+      data: {
+        url: `${FRONTEND_URL}/chat?forumId=${forumId}`,
+        type: 'mention',
+        forumId
+      }
+    };
+
+    try {
+      await sendPushToUser(user.id, payload);
+      console.log(`[PUSH] Successfully sent push to user ${username}`);
+    } catch (err) {
+      console.error(`[PUSH] Failed to send push to user ${username}:`, err);
+    }
+  }
+}
+
+// Helper function to send push notifications to all forum members about new message
+async function sendForumNotifications(messageContent, forumId, senderUsername, senderId) {
+  console.log(`[FORUM-PUSH] sendForumNotifications called - Forum: ${forumId}, Sender: ${senderUsername}`);
+  
+  // Get forum name
+  const forum = db.prepare('SELECT title FROM forums WHERE id = ?').get(forumId);
+  if (!forum) {
+    console.log('[FORUM-PUSH] Forum not found');
+    return;
+  }
+
+  // Get all forum members except sender
+  const forumMembers = db.prepare(`
+    SELECT DISTINCT fm.user_id 
+    FROM forum_members fm 
+    WHERE fm.forum_id = ? AND fm.user_id != ?
+  `).all(forumId, senderId);
+
+  console.log(`[FORUM-PUSH] Forum "${forum.title}" has ${forumMembers.length} members to notify (excluding sender)`);
+
+  // Truncate message for notification body
+  const messagePreview = messageContent.length > 100 
+    ? messageContent.substring(0, 97) + '...' 
+    : messageContent;
+
+  // Send push to each member
+  for (const member of forumMembers) {
+    console.log(`[FORUM-PUSH] Sending notification to user ID ${member.user_id}`);
+    const payload = {
+      title: `${senderUsername} posted in ${forum.title}`,
+      body: messagePreview,
+        icon: '/webcare-logo.webp',
+        badge: '/webcare-logo.webp',
+      tag: `forum-${forumId}-${Date.now()}`,
+      data: {
+        url: `${FRONTEND_URL}/chat?forumId=${forumId}`,
+        type: 'forum-message',
+        forumId
+      }
+    };
+
+    try {
+      await sendPushToUser(member.user_id, payload);
+      console.log(`[FORUM-PUSH] Successfully sent push to user ${member.user_id}`);
+    } catch (err) {
+      console.error(`[FORUM-PUSH] Failed to send push to user ${member.user_id}:`, err.message);
+    }
+  }
+}
 
 // Middleware
 app.use(cors({ origin: '*' }));
@@ -43,6 +161,7 @@ app.use('/api/forums', forumRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/push', pushRoutes);
 
 // Socket.io — authenticate via JWT
 io.use((socket, next) => {
@@ -195,6 +314,20 @@ io.on('connection', (socket) => {
       // Broadcast to everyone in the room (including sender)
       io.to(`forum:${fid}`).emit('new_message', message);
       emitForumPreview(fid);
+
+      // Send push notifications to mentioned users
+      if (content) {
+        sendMentionNotifications(content, fid, socket.user.username, socket.user.id).catch(err =>
+          console.error('Error sending mention notifications:', err)
+        );
+      }
+
+      // Send push notifications to all forum members about new message
+      if (content) {
+        sendForumNotifications(content, fid, socket.user.username, socket.user.id).catch(err =>
+          console.error('Error sending forum notifications:', err)
+        );
+      }
     } catch (err) {
       console.error('Socket send_message error:', err);
       require('fs').appendFileSync('socket_error.log', err.toString() + '\n');
@@ -345,7 +478,13 @@ io.on('connection', (socket) => {
     const canDelete = socket.user.role === 'admin' || message.user_id === socket.user.id;
     if (!canDelete) return;
 
-    db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
+    // Soft delete: mark message as deleted by admin
+    if (socket.user.role === 'admin') {
+      db.prepare('UPDATE messages SET is_deleted_by_admin = 1, deleted_by_admin_at = CURRENT_TIMESTAMP WHERE id = ?').run(mid);
+    } else {
+      // For non-admin (message owner), actually delete the message
+      db.prepare('DELETE FROM messages WHERE id = ?').run(mid);
+    }
 
     io.to(`forum:${fid}`).emit('message_deleted', { messageId: mid });
     emitForumPreview(fid);

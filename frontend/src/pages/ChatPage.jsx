@@ -59,6 +59,7 @@ import {
   Clock,
   MapPin,
 } from 'lucide-react';
+import chatBg from '../background webchat.png';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
@@ -1554,14 +1555,16 @@ export default function ChatPage() {
 
         {/* CENTER PANEL */}
         {showChatPanel && (!activeForum ? (
-          <div className="flex flex-1 flex-col bg-slate-50 text-slate-400">
-            <div className="flex flex-1 flex-col items-center justify-center">
+          <div className="flex flex-1 flex-col bg-slate-50 text-slate-400" style={{ position: 'relative', backgroundImage: `url(${chatBg})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center right', backgroundSize: 'cover' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
+            <div className="flex flex-1 flex-col items-center justify-center" style={{ position: 'relative', zIndex: 1 }}>
               <MessagesSquare size={48} className="mb-3.5 opacity-30" />
               <p className="text-sm">Pilih forum untuk mulai chat.</p>
             </div>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-1 flex-col bg-slate-50">
+          <div className="flex min-w-0 flex-1 flex-col bg-slate-50" style={{ position: 'relative', backgroundImage: `url(${chatBg})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center right', backgroundSize: 'cover' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
 
             <ChatHeader
               isMobile={isMobile}

@@ -101,6 +101,20 @@ function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      method TEXT NOT NULL DEFAULT 'push',
+      offset_minutes INTEGER NOT NULL,
+      remind_at DATETIME NOT NULL,
+      sent INTEGER NOT NULL DEFAULT 0,
+      sent_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (message_id) REFERENCES messages(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // Lightweight migrations for existing databases.
@@ -160,6 +174,30 @@ function initDatabase() {
   }
   if (!hasColumn('event_call_link')) {
     db.exec('ALTER TABLE messages ADD COLUMN event_call_link TEXT');
+  }
+  // Create reminders table in existing DBs if missing
+  const reminderColumns = db.prepare('PRAGMA table_info(reminders)').all();
+  const hasReminderColumn = (name) => reminderColumns.some((col) => col.name === name);
+  if (!reminderColumns || reminderColumns.length === 0) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS reminders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          message_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          method TEXT NOT NULL DEFAULT 'push',
+          offset_minutes INTEGER NOT NULL,
+          remind_at DATETIME NOT NULL,
+          sent INTEGER NOT NULL DEFAULT 0,
+          sent_at DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (message_id) REFERENCES messages(id),
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+      `);
+    } catch (err) {
+      // ignore migration errors
+    }
   }
   if (!hasColumn('is_deleted_by_admin')) {
     db.exec('ALTER TABLE messages ADD COLUMN is_deleted_by_admin INTEGER NOT NULL DEFAULT 0');

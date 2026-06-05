@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, X, Clock, MapPin } from 'lucide-react';
+import { Calendar, X, Clock, MapPin, Link2 } from 'lucide-react';
 
 export default function ViewEventModal({ viewingEvent, onClose }) {
   if (!viewingEvent) return null;
@@ -66,6 +66,18 @@ export default function ViewEventModal({ viewingEvent, onClose }) {
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Deskripsi</div>
               <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, background: '#F9FAFB', borderRadius: 8, padding: '10px 12px', border: '1px solid #E5E7EB' }}>{viewingEvent.event_description}</div>
+            </div>
+          )}
+
+          {viewingEvent.event_call_link && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Link Meeting / Call</div>
+              <div style={{ fontSize: 13, color: '#374151' }}>
+                <a href={viewingEvent.event_call_link} target="_blank" rel="noopener noreferrer" style={{ color: '#4F46E5', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Link2 size={14} />
+                  <span style={{ overflowWrap: 'anywhere' }}>{viewingEvent.event_call_link}</span>
+                </a>
+              </div>
             </div>
           )}
 

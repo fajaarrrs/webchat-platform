@@ -14,6 +14,7 @@ const userRoutes = require('./routes/users');
 const taskRoutes = require('./routes/tasks');
 const pushRoutes = require('./routes/push');
 const { sendPushToUser } = require('./routes/push');
+const { startReminderWorker } = require('./reminder_worker');
 
 const app = express();
 const server = http.createServer(app);
@@ -329,6 +330,44 @@ io.on('connection', (socket) => {
         eventCallLink
       );
 
+      // If this message is an event and contains reminder definitions from the client,
+      // persist reminders into `reminders` table. `eventData.reminders` expected shape:
+      // [{ method: 'push', offset_minutes: 15 }, ...]
+      try {
+        if (isEvent && Array.isArray(eventData?.reminders) && result?.lastInsertRowid) {
+          const mid = result.lastInsertRowid;
+          // Get all forum members except sender
+          const members = db.prepare('SELECT DISTINCT user_id FROM forum_members WHERE forum_id = ? AND user_id != ?').all(fid, socket.user.id);
+          for (const rem of eventData.reminders) {
+            const method = rem.method || 'push';
+            const offset = parseInt(rem.offset_minutes ?? rem.offset ?? 0, 10) || 0;
+            // calculate remind_at as event_start_at minus offset minutes
+            let remindAt = null;
+            if (eventStartAt) {
+              try {
+                const startDate = new Date(eventStartAt);
+                remindAt = new Date(startDate.getTime() - (offset * 60 * 1000)).toISOString();
+              } catch (e) {
+                remindAt = null;
+              }
+            }
+            if (!remindAt) remindAt = new Date().toISOString();
+
+            // Insert reminder for each member
+            for (const m of members) {
+              try {
+                db.prepare(`INSERT INTO reminders (message_id, user_id, method, offset_minutes, remind_at) VALUES (?, ?, ?, ?, ?)`)
+                  .run(mid, m.user_id, method, offset, remindAt);
+              } catch (e) {
+                console.error('[REMINDER] Failed to insert reminder for user', m.user_id, e && e.message ? e.message : e);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to persist reminders for event:', err);
+      }
+
       const message = db.prepare(`
         SELECT m.id, m.forum_id, m.user_id, m.content, m.file_url, m.file_name, m.file_type,
                m.is_pinned, m.reply_to_id, m.edited_at, m.created_at,
@@ -555,6 +594,14 @@ app.use(express.static(frontendDistPath));
 app.use((req, res) => {
   res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
+
+// Start reminder worker (checks reminders every minute)
+try {
+  startReminderWorker(db, sendPushToUser, io);
+  console.log('[REMINDER] Worker started');
+} catch (err) {
+  console.error('[REMINDER] Failed to start worker:', err && err.message ? err.message : err);
+}
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

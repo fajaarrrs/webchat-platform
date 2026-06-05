@@ -202,6 +202,7 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
   const [location, setLocation] = useState(initialData?.event_location || '');
   const [callLinkEnabled, setCallLinkEnabled] = useState(!!initialData?.event_call_link);
   const [callLink, setCallLink] = useState(initialData?.event_call_link || '');
+  const [reminders, setReminders] = useState(initialData?.reminders || []);
   const [errors, setErrors] = useState({});
 
   const validate = () => {
@@ -231,14 +232,21 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
       endAt = new Date(`${endDate}T${endTime}`).toISOString();
     }
 
-    onSubmit({
+    const payload = {
       name: name.trim(),
       description: description.trim(),
       start_at: startAt,
       end_at: endAt,
       location: location.trim(),
       call_link: callLinkEnabled ? callLink.trim() : '',
-    });
+      reminders,
+    };
+
+    try {
+      console.log('[EVENT-MODAL] Submitting event payload:', payload);
+    } catch (err) {}
+
+    onSubmit(payload);
   };
 
   const inputBase = {
@@ -435,6 +443,44 @@ export default function CreateEventModal({ onClose, onSubmit, loading, initialDa
                     ) : null}
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Reminders */}
+            <div>
+              <label style={labelStyle}>Reminder <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(opsional)</span></label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <select id="reminder-presets" style={{ ...inputBase, maxWidth: 160 }} defaultValue="15">
+                  <option value="15">15 menit sebelum</option>
+                  <option value="30">30 menit sebelum</option>
+                  <option value="60">1 jam sebelum</option>
+                  <option value="1440">1 hari sebelum</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sel = document.getElementById('reminder-presets');
+                    const offset = parseInt(sel?.value || '15', 10);
+                    // prevent duplicates
+                    if (!reminders.some(r => r.offset_minutes === offset)) {
+                      setReminders(prev => [...prev, { method: 'push', offset_minutes: offset }]);
+                    }
+                  }}
+                  style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: '#4F46E5', color: '#fff', cursor: 'pointer' }}
+                >Tambah reminder</button>
+              </div>
+
+              {reminders.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {reminders.map((r, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 8 }}>
+                      <div style={{ fontSize: 13, color: '#374151' }}>{r.offset_minutes >= 60 ? (r.offset_minutes === 1440 ? '1 hari sebelum' : `${r.offset_minutes/60} jam sebelum`) : `${r.offset_minutes} menit sebelum`}</div>
+                      <button type="button" onClick={() => setReminders(reminders.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'transparent', color: '#DC2626', cursor: 'pointer' }}>Hapus</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>Tidak ada reminder ditambahkan</div>
               )}
             </div>
 

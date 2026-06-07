@@ -91,6 +91,35 @@ export default function UsersPage() {
     });
   }, [users, search, filterRole]);
 
+  const formatDateTime = (s) => {
+    if (!s) return '-';
+    try {
+      // Normalize timestamp strings that come from SQLite ("YYYY-MM-DD HH:MM:SS")
+      // SQLite CURRENT_TIMESTAMP is UTC. If the string has no timezone indicator,
+      // parse it as UTC by converting to ISO format and appending 'Z'. If it
+      // already contains a timezone (Z or +hh:mm), let Date parse it.
+      let src = String(s);
+      const hasTZ = /[zZ]|[+-]\d{2}:?\d{2}/.test(src);
+      if (!hasTZ) {
+        // convert space to T and append Z to force UTC parsing
+        src = src.replace(' ', 'T') + 'Z';
+      } else {
+        // normalize space-separated to T for consistent parsing
+        src = src.replace(' ', 'T');
+      }
+      const d = new Date(src);
+      return d.toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (e) {
+      return String(s);
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       await api.delete(`/users/${id}`);
@@ -363,7 +392,7 @@ export default function UsersPage() {
             <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#F9FAFB' }}>
-                  {['User', 'Role', 'Email', 'Password', 'Aksi'].map((h) => (
+                  {['User', 'Role', 'Email', 'Waktu Register', 'Aksi'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -466,15 +495,8 @@ export default function UsersPage() {
                       </td>
 
                       <td style={{ padding: '16px 20px' }}>
-                        <span
-                          style={{
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                            fontSize: 12,
-                            color: '#6B7280',
-                            letterSpacing: 1,
-                          }}
-                        >
-                          ********
+                        <span style={{ fontSize: 13, color: '#6B7280' }}>
+                          {formatDateTime(u.created_at)}
                         </span>
                       </td>
 

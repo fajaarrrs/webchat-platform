@@ -1171,21 +1171,24 @@ export default function ChatPage() {
     }
   };
 
-  const canDelete = msg => user?.role === 'admin' || msg.user_id === user?.id;
+  const canDelete = msg => user?.role === 'admin' || String(msg.user_id) === String(user?.id);
   const canEdit = (msg) => {
     if (!msg) return false;
     if (msg.file_url) return false;
-    if (user?.role === 'admin') return true;
-    if (msg.user_id !== user?.id) return false;
-    try {
-      const created = new Date(msg.created_at).getTime();
-      const now = Date.now();
-      const diff = now - created;
-      const FIFTEEN_MIN = 15 * 60 * 1000;
-      return diff <= FIFTEEN_MIN;
-    } catch {
-      return false;
-    }
+    if (!user || !user.id) return false;
+    // Only message owner can edit their own message
+    const isOwner = String(msg.user_id) === String(user.id);
+    console.log('canEdit check - msg.id:', msg.id, '| msg.user_id:', msg.user_id, typeof msg.user_id, '| user.id:', user.id, typeof user.id, '| isOwner:', isOwner);
+    if (!isOwner) return false;
+try {
+  const created = parseUtcDate(msg.created_at)?.getTime();
+  if (!created) return false;
+  const diff = Date.now() - created;
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+  return diff <= FIFTEEN_MIN;
+} catch (err) {
+  return false;
+}
   };
   const canPin = () => user?.role === 'admin';
 
@@ -1862,7 +1865,7 @@ export default function ChatPage() {
       {viewingEvent && <ViewEventModal viewingEvent={viewingEvent} onClose={() => setViewingEvent(null)} />}
 
       {/* Task Slider */}
-      <TaskSlider isOpen={showTaskSlider} onClose={() => setShowTaskSlider(false)} forumId={activeForumId} />
+      <TaskSlider isOpen={showTaskSlider} onClose={() => setShowTaskSlider(false)} forumId={activeForumId} socket={socketRef.current} />
 
       {/* Push Notification Permission Modal */}
       <PushNotificationModal

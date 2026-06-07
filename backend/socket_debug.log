@@ -27,3 +27,30 @@
 {"event":"send_message","forumId":2,"content":"hi","replyToId":null}
 {"event":"send_message","forumId":1,"content":"ok","replyToId":13}
 {"event":"send_message","forumId":2,"content":"Oleh karena itu, mohon dibantu untuk menge-tag nomor kontak dari mhs D4 berikut :\n\n3123600001\tMuhammad Rafi Rizaldi  @193492689145972\n3123600002\tLintang Arum Sari @14293701505163\n3123600003\tZalfail Mumtaza Attamami @98591376953562 \n3123600004\tMuhammad Fajar Siddiq @31134503186588 \n3123600005\tIvan Rahmat Prakasa @23008374747263 \n3123600006\tFransiska Elsa Dina Mareta @265347441651880  \n3123600007\tRifki Alaudin @36949654028321 \n3123600008\tSalwa Fadhila Rahmania @49692805197888 \n3123600009\tKansa Adeneva Riti Syarani @143542135566487 \n3123600010\tYofi Yudistian @191010114130071 \n3123600011\tMohammad Rizaldy Ramadhan @215104998113493 \n3123600012\tAdrian Mendienta Tumanggor @137297320226856 \n3123600014\tShalsabilla Wahyu Arifhana @196932957921300 \n3123600015\tNayla Herfiana Putri @115285562503268 \n3123600016\tMuhammad Alif Aditya @105561823649970 \n3123600017\tSalma Afifa Azis @67147619418250 \n3123600018\tEugenia Valiant Van True @263479164420220 \n3123600019\tRaihan Malano Arrasyid @183773228474488 \n3123600020\tVemas Satria Edy Pratama @162895308533859 \n3123600021\tMuhammad Zaidan Zhafiz Satrianto @176695441100878 \n3123600022\tGeorge Winston Kalim @217411261305022 \n3123600023\tMuhammad Felda Hibatullah @60696595288101 \n3123600024\tShafrial Azis @88828731760762 \n3123600025\tMoch. Alif Akbar @126766094000177 \n3123600026\tRenaldy Izza Briliandin Tino Saputra @94747112828991 \n3123600027\tMuhammad Raihan Ghani @62251541233856 \n3123600028\tMuhammad Zaky Mubarok @44689285742625 \n3123600029\tMohammad Zidan Wianto Putra @166924306665484 \n3123600030\tAldino Matasik @68492514590731 \n3123600031\tDwi Indah Cahyani @11480699256897\n3123600032\tAulia Syfa Ramadhani @85117896769675\n3123600033\tSarah Rizqi Firyal @198444702548014\n3123600034\tYeremia Christian Candra Octaviano @10033110753380\n3123600035\tNaufal Zhafransyah Setiawan  @143494907732181\n3123600036\tEka Danis Saputri @135201443291339\n3123600037\tTiara Vania Wijaya Putri @144512865276154\n3123600038\tAlfansyah Ahmad Al Ghozaly @249555417321726\n3123600039\tHalimatuz Zahra Sakin Sabilla @130648811503836\n3123600040\tNurul Fatimah Azmi @243185410408659\n3123600041\tMarcel Dwi Astika @278283866398858\n3123600042\tSaifullah Ahmad Musyanto @267456622887086\n3123600043\tRidho Fahrizal @9277196492824\n3123600044\tMuhammad Farhan Hibatullah Akbar @133960281636933\n3123600045\tMohammad Farrel Ponco Hutomo @177369314799771\n3123600046\tMoh. Nizar Nugraha Adi @173435124723877\n3123600047\tMuhammad Ayman Fahad @215074883002419\n3123600048\tRakha Maulana Kaysah Putra @81686201118885\n3123600049\tSonny Kurniadi @221779377258693\n3123600050\tAli Akbar Nafis @34153680662755\n3123600051\tM. Filsaf Aelang Abilt @154893851615315\n3123600052\tRangga Rizqy Awanda Putra @42808090054891\n3123600053\tNickolas Yudistira Krisando @5295778619410\n3123600054\tJulio Betara Affandi @124081789767898\n3123600055  Andhika Fadli Bhaskara 081334120086\n3123600056\tMuhammad Satrio Asadel @273765711798511\n3123600058\tAisha Sabina @3770998096089\n3123600060\tIbrahim Ahmad Al-'Ashim @50551815422139","replyToId":null}
+{"event":"send_message","forumId":1,"content":"hi","replyToId":null}
+{"event":"send_message","forumId":1,"content":"halo","replyToId":null}
+{"event":"send_message","forumId":1,"content":"hi","replyToId":null}
+{"event":"send_message","forumId":1,"content":"halo","replyToId":null}
+{"event":"send_message","forumId":1,"content":"a","replyToId":null}
+{"event":"send_message","forumId":1,"content":"admin","replyToId":null}
+{"event":"send_message","forumId":1,"content":"client","replyToId":null}
+{"event":"send_message","forumId":1,"content":"a","replyToId":null}
+{"event":"send_message","forumId":1,"content":"a","replyToId":null}
+{"event":"send_message","forumId":1,"content":"a","replyToId":null}
+{"event":"send_message","forumId":1,"content":"","eventData":{"name":"rapat1","description":"","start_at":"2026-06-06T17:00:00.000Z","end_at":null,"location":"","call_link":"","reminders":[{"method":"push","offset_minutes":15}]}}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"hi","replyToId":null}
+{"event":"send_message","forumId":1,"content":"halo","replyToId":null}
+{"event":"send_message","forumId":1,"content":"TEST","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"tes","replyToId":null}
+{"event":"send_message","forumId":1,"content":"test","replyToId":null}
+{"event":"send_message","forumId":1,"content":"tes","replyToId":null}
+{"event":"send_message","forumId":1,"content":"bisa gaes","replyToId":null}
+{"event":"send_message","forumId":1,"content":"good evening","replyToId":null}

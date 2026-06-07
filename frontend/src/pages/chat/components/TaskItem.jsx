@@ -1,6 +1,16 @@
 import React from 'react';
 import { Check, X, Edit2, Trash2 } from 'lucide-react';
 
+const formatCompletedTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  // Convert UTC to WIB (UTC+7)
+  const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+  const day = wibDate.toLocaleDateString('id-ID', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  const time = wibDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} ${time}`;
+};
+
 export default function TaskItem({ task, onToggle, onEdit, onDelete }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [title, setTitle] = React.useState(task.title);
@@ -150,6 +160,32 @@ export default function TaskItem({ task, onToggle, onEdit, onDelete }) {
             }}
           >
             {task.description}
+          </p>
+        )}
+        {task.created_by_username && task.created_at && (
+          <p
+            style={{
+              margin: '6px 0 0 0',
+              fontSize: '11px',
+              color: '#6B7280',
+              fontWeight: '500',
+              wordBreak: 'break-word',
+            }}
+          >
+            Created by {task.created_by_username} on {formatCompletedTime(task.created_at)}
+          </p>
+        )}
+        {task.completed === 1 && task.completed_by_username && task.completed_at && (
+          <p
+            style={{
+              margin: '4px 0 0 0',
+              fontSize: '11px',
+              color: '#10B981',
+              fontWeight: '500',
+              wordBreak: 'break-word',
+            }}
+          >
+            ✓ Completed by {task.completed_by_username} on {formatCompletedTime(task.completed_at)}
           </p>
         )}
       </div>

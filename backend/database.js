@@ -213,6 +213,14 @@ function initDatabase() {
     db.exec('ALTER TABLE tasks ADD COLUMN forum_id INTEGER');
   }
 
+  if (!hasTaskColumn('completed_by')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN completed_by INTEGER');
+  }
+
+  if (!hasTaskColumn('completed_at')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN completed_at DATETIME');
+  }
+
   // Presence: per-device presence tracking
   const userColumns = db.prepare('PRAGMA table_info(users)').all();
   const hasUserColumn = (name) => userColumns.some((col) => col.name === name);

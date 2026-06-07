@@ -161,7 +161,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/forums', forumRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/tasks', taskRoutes);
+app.use('/api/tasks', taskRoutes(io));
 app.use('/api/push', pushRoutes);
 
 // Socket.io — authenticate via JWT
@@ -422,22 +422,22 @@ io.on('connection', (socket) => {
     ).get(mid, fid);
     if (!existing) return;
 
-      const canEditByRole = socket.user.role === 'admin' || existing.user_id === socket.user.id;
-      if (!canEditByRole) return;
+      // Only message owner can edit
+      if (existing.user_id !== socket.user.id) return;
 
-      // Enforce 15-minute edit window for non-admins
-      if (socket.user.role !== 'admin') {
-        const row = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(mid);
-        if (row && row.created_at) {
-          const created = new Date(row.created_at).getTime();
-          const now = Date.now();
-          const FIFTEEN_MIN = 15 * 60 * 1000;
-          if (now - created > FIFTEEN_MIN) {
-            // Reject silently (could emit an error ack in future)
-            return;
-          }
-        }
-      }
+      // Enforce 15-minute edit window
+const row = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(mid);
+if (row && row.created_at) {
+  const createdStr = row.created_at.includes('Z') || row.created_at.includes('+')
+    ? row.created_at
+    : row.created_at.replace(' ', 'T') + 'Z';
+  const created = new Date(createdStr).getTime();
+  const now = Date.now();
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+  if (now - created > FIFTEEN_MIN) {
+    return;
+  }
+}
 
     db.prepare('UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextContent, mid);
 

@@ -2,27 +2,36 @@ const express = require("express");
 const { db } = require("../database");
 const { authenticate } = require("../middleware/auth");
 
-const router = express.Router();
+module.exports = (io) => {
+  const router = express.Router();
 
-// GET /api/tasks?forumId=X
-router.get("/", authenticate, (req, res) => {
-  const { forumId } = req.query;
-  if (!forumId) return res.status(400).json({ error: "forumId wajib diisi." });
+  // GET /api/tasks?forumId=X
+  router.get("/", authenticate, (req, res) => {
+    const { forumId } = req.query;
+    if (!forumId) return res.status(400).json({ error: "forumId wajib diisi." });
 
-  try {
-    const tasks = db
-      .prepare(
-        "SELECT id, user_id, forum_id, title, description, completed, created_at, updated_at FROM tasks WHERE forum_id = ? ORDER BY created_at DESC"
-      )
-      .all(forumId);
-    res.json(tasks);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    try {
+      const tasks = db
+        .prepare(`
+          SELECT t.id, t.user_id, t.forum_id, t.title, t.description, t.completed, 
+                 t.created_at, t.updated_at, t.completed_by, t.completed_at,
+                 u.username as created_by_username,
+                 COALESCE(cu.username, '') as completed_by_username
+          FROM tasks t
+          LEFT JOIN users u ON t.user_id = u.id
+          LEFT JOIN users cu ON t.completed_by = cu.id
+          WHERE t.forum_id = ? 
+          ORDER BY t.created_at DESC
+        `)
+        .all(forumId);
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 // POST /api/tasks
-router.post("/", authenticate, (req, res) => {
+  router.post("/", authenticate, (req, res) => {
   const { title, description = "", forumId } = req.body;
   const userId = req.user.id;
 
@@ -41,17 +50,26 @@ router.post("/", authenticate, (req, res) => {
       .run(userId, forumId, title.trim(), description.trim());
 
     const task = db
-      .prepare("SELECT id, user_id, forum_id, title, description, completed, created_at, updated_at FROM tasks WHERE id = ?")
+      .prepare(`
+        SELECT t.id, t.user_id, t.forum_id, t.title, t.description, t.completed, 
+               t.created_at, t.updated_at, t.completed_by, t.completed_at,
+               u.username as created_by_username,
+               COALESCE(cu.username, '') as completed_by_username
+        FROM tasks t
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN users cu ON t.completed_by = cu.id
+        WHERE t.id = ?
+      `)
       .get(result.lastInsertRowid);
 
     res.status(201).json(task);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+  });
 
-// PUT /api/tasks/:id
-router.put("/:id", authenticate, (req, res) => {
+  // PUT /api/tasks/:id
+  router.put("/:id", authenticate, (req, res) => {
   const { id } = req.params;
   const { title, description, completed } = req.body;
 
@@ -84,17 +102,26 @@ router.put("/:id", authenticate, (req, res) => {
     db.prepare(query).run(...values);
 
     const updatedTask = db
-      .prepare("SELECT id, user_id, forum_id, title, description, completed, created_at, updated_at FROM tasks WHERE id = ?")
+      .prepare(`
+        SELECT t.id, t.user_id, t.forum_id, t.title, t.description, t.completed, 
+               t.created_at, t.updated_at, t.completed_by, t.completed_at,
+               u.username as created_by_username,
+               COALESCE(cu.username, '') as completed_by_username
+        FROM tasks t
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN users cu ON t.completed_by = cu.id
+        WHERE t.id = ?
+      `)
       .get(id);
 
     res.json(updatedTask);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+  });
 
-// DELETE /api/tasks/:id
-router.delete("/:id", authenticate, (req, res) => {
+  // DELETE /api/tasks/:id
+  router.delete("/:id", authenticate, (req, res) => {
   const { id } = req.params;
 
   try {
@@ -106,27 +133,47 @@ router.delete("/:id", authenticate, (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+  });
 
-// PATCH /api/tasks/:id/toggle
-router.patch("/:id/toggle", authenticate, (req, res) => {
-  const { id } = req.params;
+  // PATCH /api/tasks/:id/toggle
+  router.patch("/:id/toggle", authenticate, (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  try {
-    const task = db.prepare("SELECT id, completed FROM tasks WHERE id = ?").get(id);
-    if (!task) return res.status(404).json({ error: "Task tidak ditemukan." });
+    try {
+      const task = db.prepare("SELECT id, completed, forum_id FROM tasks WHERE id = ?").get(id);
+      if (!task) return res.status(404).json({ error: "Task tidak ditemukan." });
 
-    const newStatus = task.completed ? 0 : 1;
-    db.prepare("UPDATE tasks SET completed = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(newStatus, id);
+      const newStatus = task.completed ? 0 : 1;
+      if (newStatus === 1) {
+        // Marking as completed: record who completed it and when
+        db.prepare("UPDATE tasks SET completed = ?, completed_by = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(newStatus, userId, id);
+      } else {
+        // Marking as incomplete: clear completed_by and completed_at
+        db.prepare("UPDATE tasks SET completed = ?, completed_by = NULL, completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(newStatus, id);
+      }
 
-    const updatedTask = db
-      .prepare("SELECT id, user_id, forum_id, title, description, completed, created_at, updated_at FROM tasks WHERE id = ?")
-      .get(id);
+      const updatedTask = db
+        .prepare(`
+          SELECT t.id, t.user_id, t.forum_id, t.title, t.description, t.completed, 
+                 t.created_at, t.updated_at, t.completed_by, t.completed_at,
+                 u.username as created_by_username,
+                 COALESCE(cu.username, '') as completed_by_username
+          FROM tasks t
+          LEFT JOIN users u ON t.user_id = u.id
+          LEFT JOIN users cu ON t.completed_by = cu.id
+          WHERE t.id = ?
+        `)
+        .get(id);
 
-    res.json(updatedTask);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+      // Emit Socket.IO event to all connected clients
+      io.emit('task_updated', updatedTask);
 
-module.exports = router;
+      res.json(updatedTask);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  return router;
+};

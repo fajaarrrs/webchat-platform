@@ -3,7 +3,7 @@ import { X, Plus, Loader } from 'lucide-react';
 import { api } from '../../../api';
 import TaskItem from './TaskItem';
 
-export default function TaskSlider({ isOpen, onClose, forumId }) {
+export default function TaskSlider({ isOpen, onClose, forumId, socket }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -16,6 +16,29 @@ export default function TaskSlider({ isOpen, onClose, forumId }) {
       fetchTasks();
     }
   }, [isOpen, forumId]);
+
+  // Listen for real-time task updates via Socket.IO
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTaskUpdated = (updatedTask) => {
+      setTasks(prev => {
+        // Check if task exists and update it, or add if new
+        const exists = prev.some(t => t.id === updatedTask.id);
+        if (exists) {
+          return prev.map(t => t.id === updatedTask.id ? updatedTask : t);
+        } else {
+          return [updatedTask, ...prev];
+        }
+      });
+    };
+
+    socket.on('task_updated', handleTaskUpdated);
+
+    return () => {
+      socket.off('task_updated', handleTaskUpdated);
+    };
+  }, [socket]);
 
   const fetchTasks = async () => {
     setLoading(true);

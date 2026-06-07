@@ -6,6 +6,8 @@ const db = new Database(path.join(__dirname, 'webchat.db'));
 
 // Enable WAL mode for better concurrent read performance
 db.pragma('journal_mode = WAL');
+// Enforce foreign key constraints
+db.pragma('foreign_keys = ON');
 
 function initDatabase() {
   const PRIMARY_ADMIN_USERNAME = 'admin';

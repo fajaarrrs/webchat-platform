@@ -200,10 +200,67 @@ router.delete("/:id", authenticate, requireAdmin, (req, res) => {
     return res.status(403).json({ error: 'Akun admin utama tidak dapat dihapus.' });
   }
 
-  db.prepare("DELETE FROM forum_members WHERE user_id = ?").run(userId);
-  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  try {
+    // Perform deletion of dependent rows in a transaction to avoid FK errors.
+    const deleteTx = db.transaction((uid) => {
+      // Remove reactions to messages authored by this user
+      db.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE user_id = ?)').run(uid);
+      // Remove reactions made by this user
+      db.prepare('DELETE FROM message_reactions WHERE user_id = ?').run(uid);
 
-  res.json({ message: "User berhasil dihapus." });
+      // Remove reminders for messages that belong to this user
+      db.prepare('DELETE FROM reminders WHERE message_id IN (SELECT id FROM messages WHERE user_id = ?)').run(uid);
+      // Remove reminders created for this user
+      db.prepare('DELETE FROM reminders WHERE user_id = ?').run(uid);
+
+      // Clear reply references (other users' messages that reply to this user's messages)
+      db.prepare('UPDATE messages SET reply_to_id = NULL WHERE reply_to_id IN (SELECT id FROM messages WHERE user_id = ?)').run(uid);
+
+      // Delete messages authored by this user
+      db.prepare('DELETE FROM messages WHERE user_id = ?').run(uid);
+
+      // Remove tasks, push subscriptions, presence devices, reads, memberships
+      db.prepare('DELETE FROM tasks WHERE user_id = ?').run(uid);
+      db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(uid);
+      db.prepare('DELETE FROM presence_devices WHERE user_id = ?').run(uid);
+      db.prepare('DELETE FROM forum_reads WHERE user_id = ?').run(uid);
+      db.prepare('DELETE FROM forum_members WHERE user_id = ?').run(uid);
+
+      // If the user created forums, nullify the created_by reference
+      db.prepare('UPDATE forums SET created_by = NULL WHERE created_by = ?').run(uid);
+
+      // Finally delete the user
+      return db.prepare('DELETE FROM users WHERE id = ?').run(uid);
+    });
+
+    const info = deleteTx(userId);
+
+    // Emit event & disconnect sockets
+    try {
+      if (_io) {
+        _io.emit('user_deleted', { id: userId });
+        try {
+          for (const [sockId, sock] of _io.sockets.sockets) {
+            // try {
+            //   if (sock && sock.user && sock.user.id === userId) {
+            //     sock.disconnect(true);
+            //   }
+            // } catch (e) { /* ignore per-socket errors */ }
+            try { if (sock && sock.user && sock.user.id === userId) sock.disconnect(true); } catch (e) { }
+          }
+        } catch (e) { console.error('Error while disconnecting sockets for deleted user:', e); }
+      }
+    } catch (err) { console.error('user_deleted emit error:', err); }
+
+    if (!info || info.changes === 0) {
+      return res.status(500).json({ error: 'Gagal menghapus user — tidak ada baris yang dihapus.' });
+    }
+
+    res.json({ message: "User berhasil dihapus." });
+  } catch (err) {
+    console.error('DELETE /api/users/:id error:', err && err.message ? err.message : err);
+    res.status(500).json({ error: 'Terjadi kesalahan saat menghapus user: ' + (err && err.message ? err.message : String(err)) });
+  }
 });
 
 module.exports = router;

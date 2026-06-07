@@ -80,6 +80,20 @@ export function AuthProvider({ children }) {
     addToast('Berhasil logout.', 'success');
   };
 
+  // If server indicates the account no longer exists (deleted by admin),
+  // perform forced logout and inform the user.
+  useEffect(() => {
+    const handler = (ev) => {
+      const msg = ev?.detail?.message || 'Akun Anda tidak ditemukan. Silakan daftar kembali.';
+      // Clear client state and token
+      setUser(null);
+      try { localStorage.removeItem('wchat_token'); } catch (e) { }
+      addToast(msg, 'error');
+    };
+    window.addEventListener('wchat:account-lost', handler);
+    return () => window.removeEventListener('wchat:account-lost', handler);
+  }, [addToast]);
+
   // Update own profile — returns updated user or throws
   const updateProfile = async (updates) => {
     try {

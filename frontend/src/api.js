@@ -44,6 +44,16 @@ async function request(path, { method = 'GET', body, headers, isFormData = false
 		const message =
 			(data && typeof data === 'object' && (data.error || data.message))
 			|| `Request gagal (${response.status})`;
+
+		// If the user was deleted server-side, clear local token and inform app
+		// so it can show a friendly message / force logout.
+		if (response.status === 404 && typeof message === 'string' && message.includes('User tidak ditemukan')) {
+			try { localStorage.removeItem('wchat_token'); } catch (e) { /* ignore */ }
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('wchat:account-lost', { detail: { message } }));
+			}
+		}
+
 		throw new Error(message);
 	}
 

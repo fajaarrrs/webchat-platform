@@ -8,7 +8,13 @@ function authenticate(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    req.user = jwt.verify(header.slice(7), JWT_SECRET);
+    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    // Verify user still exists in DB. If deleted, reject early so clients
+    // get a clear 404 and can react (logout / show message).
+    const user = db.prepare('SELECT id, username, email, role FROM users WHERE id = ?').get(payload.id);
+    if (!user) return res.status(404).json({ error: 'User tidak ditemukan.' });
+    // Attach fresh user data from DB (id, username, email, role)
+    req.user = { id: user.id, username: user.username, email: user.email, role: user.role };
     next();
   } catch {
     res.status(401).json({ error: 'Token tidak valid atau sudah kedaluwarsa.' });

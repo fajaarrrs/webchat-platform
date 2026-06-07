@@ -54,6 +54,12 @@ export default function DirectoryPanel({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 0 16px' }}>
+        {activeForum.description && activeForum.description.toString().trim().length > 0 && (
+          <div style={{ padding: '0 16px 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Deskripsi</div>
+            <div style={{ fontSize: 13, color: '#6B7280', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{activeForum.description}</div>
+          </div>
+        )}
         <div style={{ padding: '0 16px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <Users size={14} color="#6B7280" style={{ flexShrink: 0 }} />

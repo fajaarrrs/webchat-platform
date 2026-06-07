@@ -9,6 +9,7 @@ import './CreateLinkPage.css';
 
 const MAX_TITLE_LENGTH = 25;
 const MAX_PROJECT_LENGTH = 25;
+const MAX_DESCRIPTION_LENGTH = 100;
 
 export default function CreateLinkPage() {
   const { addToast } = useAuth();
@@ -204,11 +205,17 @@ export default function CreateLinkPage() {
               <label className="form-label">Deskripsi</label>
               <input
                 type="text"
+                maxLength={MAX_DESCRIPTION_LENGTH}
                 value={form.description}
                 placeholder="Deskripsi singkat forum ini (opsional)"
                 className="link-input"
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+              {form.description.length > 0 && (
+                <div style={{ textAlign: 'right', fontSize: '11px', color: form.description.length >= MAX_DESCRIPTION_LENGTH ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                  {form.description.length}/{MAX_DESCRIPTION_LENGTH}
+                </div>
+              )}
             </div>
 
             <button type="submit" disabled={isDisabled} className="submit-btn">
@@ -505,8 +512,14 @@ export default function CreateLinkPage() {
               <input
                 className="link-input"
                 value={editForm.description}
+                maxLength={MAX_DESCRIPTION_LENGTH}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
+              {editForm.description.length > 0 && (
+                <div style={{ textAlign: 'right', fontSize: '11px', color: editForm.description.length >= MAX_DESCRIPTION_LENGTH ? '#EF4444' : '#9CA3AF', marginTop: '4px' }}>
+                  {editForm.description.length}/{MAX_DESCRIPTION_LENGTH}
+                </div>
+              )}
             </div>
             <div className="form-actions">
               <button type="button" onClick={() => setEditLink(null)} className="btn-secondary">Batal</button>

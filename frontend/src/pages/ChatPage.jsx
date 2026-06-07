@@ -146,6 +146,8 @@ export default function ChatPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
   const [showDirectory, setShowDirectory] = useState(false);
+  const [directoryAnimatingIn, setDirectoryAnimatingIn] = useState(false);
+  const [directoryClosing, setDirectoryClosing] = useState(false);
   const [showPinnedMenu, setShowPinnedMenu] = useState(false);
   const [jumpedMessageId, setJumpedMessageId] = useState(null);
   const [showTaskSlider, setShowTaskSlider] = useState(false);
@@ -385,6 +387,19 @@ export default function ChatPage() {
       if (!initialForumId && data.length > 0 && !isMobile) setActiveForum(data[0].id, { userInitiated: true });
     });
   }, [initialForumId, isMobile]);
+
+  // Animate Directory panel on mobile when opening
+  useEffect(() => {
+    if (!isMobile) return;
+    if (showDirectory) {
+      // start mounted-in state (panel starts off-screen then animates in)
+      setDirectoryAnimatingIn(true);
+      // next tick, remove the 'start' flag so CSS transition runs
+      const t = setTimeout(() => setDirectoryAnimatingIn(false), 20);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [showDirectory, isMobile]);
 
   useEffect(() => {
     if (!favoriteKey) {
@@ -1464,6 +1479,19 @@ try {
     setShowHeaderMenu(false);
   };
 
+  const handleCloseDirectory = () => {
+    if (!isMobile) {
+      setShowDirectory(false);
+      return;
+    }
+    // play close animation then unmount
+    setDirectoryClosing(true);
+    setTimeout(() => {
+      setDirectoryClosing(false);
+      setShowDirectory(false);
+    }, 260);
+  };
+
   const handleOpenJoinModal = () => {
     setShowJoinModal(true);
     setShowQuickMenu(false);
@@ -1532,6 +1560,14 @@ try {
 
   const sharedFiles = messages.filter(m => m.file_url);
 
+  // responsive background style for chat area
+  const chatBackgroundStyle = {
+    backgroundImage: `url(${chatBg})`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: (isMobile || (typeof isTablet !== 'undefined' && isTablet)) ? 'center center' : 'center right',
+    backgroundSize: (isMobile || (typeof isTablet !== 'undefined' && isTablet)) ? 'contain' : 'cover'
+  };
+
   return (
     <DashboardLayout hideSidebar={isCompactChatLayout}>
       <div className="flex h-screen overflow-hidden font-sans">
@@ -1566,7 +1602,7 @@ try {
 
         {/* CENTER PANEL */}
         {showChatPanel && (!activeForum ? (
-          <div className="flex flex-1 flex-col bg-slate-50 text-slate-400" style={{ position: 'relative', backgroundImage: `url(${chatBg})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center right', backgroundSize: 'cover' }}>
+          <div className="flex flex-1 flex-col bg-slate-50 text-slate-400" style={{ position: 'relative', ...chatBackgroundStyle }}>
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
             <div className="flex flex-1 flex-col items-center justify-center" style={{ position: 'relative', zIndex: 1 }}>
               <MessagesSquare size={48} className="mb-3.5 opacity-30" />
@@ -1574,7 +1610,7 @@ try {
             </div>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-1 flex-col bg-slate-50" style={{ position: 'relative', backgroundImage: `url(${chatBg})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center right', backgroundSize: 'cover' }}>
+          <div className="flex min-w-0 flex-1 flex-col bg-slate-50" style={{ position: 'relative', ...chatBackgroundStyle }}>
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.05)', zIndex: 0 }} />
 
             <ChatHeader
@@ -1757,14 +1793,22 @@ try {
         ))}
 
         {/* RIGHT PANEL — Directory */}
-        {activeForum && showDirectory && (
+        {activeForum && (showDirectory || directoryClosing || directoryAnimatingIn) && (
           isMobile ? (
             <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.28)', zIndex: 1200, display: 'flex', justifyContent: 'flex-end' }}
-              onClick={() => setShowDirectory(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', justifyContent: 'flex-end',
+                background: `rgba(0,0,0,${directoryClosing ? 0 : 0.28})`,
+                transition: 'background-color 200ms ease, opacity 200ms ease'
+              }}
+              onClick={handleCloseDirectory}
             >
               <div
-                style={{ width: '100%', maxWidth: 360, height: '100%', boxShadow: '0 12px 36px rgba(0,0,0,0.18)', background: 'transparent' }}
+                style={{
+                  width: '100%', maxWidth: 360, height: '100%', boxShadow: '0 12px 36px rgba(0,0,0,0.18)', background: 'transparent',
+                  transform: directoryAnimatingIn ? 'translateX(100%)' : (directoryClosing ? 'translateX(100%)' : 'translateX(0)'),
+                  transition: 'transform 220ms cubic-bezier(0.2,0,0,1)'
+                }}
                 onClick={e => e.stopPropagation()}
               >
                 <DirectoryPanel
@@ -1778,7 +1822,7 @@ try {
                   getColor={getColor}
                   sharedFiles={sharedFiles}
                   getFileInfo={getFileInfo}
-                  setShowDirectory={setShowDirectory}
+                  setShowDirectory={handleCloseDirectory}
                   baseUrl={BASE_URL}
                 />
               </div>

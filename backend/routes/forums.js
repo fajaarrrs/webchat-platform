@@ -108,9 +108,11 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   ).run(cleanTitle, cleanProject, (description || '').trim(), token, req.user.id);
 
   // Auto-add admin as member
+  // Auto-add all users with role = 'admin' to the forum so every admin
+  // receives membership automatically (includes the creator).
   db.prepare(
-    'INSERT OR IGNORE INTO forum_members (forum_id, user_id) VALUES (?, ?)'
-  ).run(result.lastInsertRowid, req.user.id);
+    "INSERT OR IGNORE INTO forum_members (forum_id, user_id) SELECT ?, id FROM users WHERE role = 'admin'"
+  ).run(result.lastInsertRowid);
 
   const forum = db.prepare(`
     SELECT f.*, u.username as creator_name,

@@ -328,6 +328,14 @@ export default function ChatPage() {
     socket.on('message_reactions_updated', ({ messageId, reactions, users }) => {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: reactions || [], reacting_users: users || [] } : m));
     });
+    socket.on('user_updated', (u) => {
+      try {
+        if (!u || !u.id) return;
+        setMessages(prev => prev.map(m => (m.user_id === u.id ? { ...m, username: u.username, role: u.role } : m)));
+        setForumMembers(prev => prev.map(m => (m.id === u.id ? { ...m, username: u.username, role: u.role, avatar: u.avatar } : m)));
+        setForums(prev => prev.map(f => (String(f.last_sender_id) === String(u.id) ? { ...f, last_sender_username: u.username, last_sender_role: u.role } : f)));
+      } catch (err) { console.error('user_updated handling error', err); }
+    });
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
     });

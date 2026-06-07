@@ -240,6 +240,13 @@ function initDatabase() {
       // ignore migration errors
     }
   }
+  if (!hasUserColumn('avatar_url')) {
+    try {
+      db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT");
+    } catch (err) {
+      // ignore migration errors
+    }
+  }
 
   // Create presence_devices table if missing
   db.exec(`

@@ -315,8 +315,27 @@ export default function SettingsPage() {
                         <p className="text-lg font-bold text-slate-900">{user?.username}</p>
                         <p className="text-sm text-slate-500">{user?.email}</p>
                         <div className="mt-1.5">
-                          <button type="button" onClick={() => avatarInputRef.current?.click()} className={secondaryButtonClass}><Camera size={14}/> {avatarUploading ? 'Mengunggah...' : 'Pilih Foto'}</button>
-                          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                          <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => avatarInputRef.current?.click()} className={secondaryButtonClass}>
+                              <Camera size={14}/> {avatarUploading ? 'Mengunggah...' : 'Pilih Foto'}
+                            </button>
+                            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                            {user?.avatar && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const ok = window.confirm('Yakin ingin menghapus foto profil?');
+                                  if (!ok) return;
+                                  setAvatarUploading(true);
+                                  await handleDeleteAvatar();
+                                  setAvatarUploading(false);
+                                }}
+                                className={secondaryButtonClass}
+                              >
+                                <Trash2 size={14} /> Hapus Foto
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                   </div>

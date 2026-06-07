@@ -73,15 +73,23 @@ export default function DirectoryPanel({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {forumMembers.map((member) => (
-                <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                      {getInitials(member.username)}
-                    </div>
-                    {member.is_online ? (
-                      <div style={{ position: 'absolute', right: -2, bottom: -2, width: 10, height: 10, borderRadius: '50%', background: '#10B981', border: '2px solid #fff' }} />
-                    ) : null}
-                  </div>
+                    <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        {member.avatar ? (
+                          <img
+                            src={`${baseUrl}${member.avatar}`}
+                            alt={member.username}
+                            style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: getColor(member.id % 6), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
+                            {getInitials(member.username)}
+                          </div>
+                        )}
+                        {member.is_online ? (
+                          <div style={{ position: 'absolute', right: -2, bottom: -2, width: 10, height: 10, borderRadius: '50%', background: '#10B981', border: '2px solid #fff' }} />
+                        ) : null}
+                      </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#1F2937', display: 'flex', alignItems: 'center', gap: 5 }}>
                       {member.username}

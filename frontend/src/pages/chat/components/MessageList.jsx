@@ -279,7 +279,17 @@ export default function MessageList({
                     showSender ? 'visible bg-blue-50' : 'invisible bg-transparent'
                   )}
                 >
-                  {showSender ? msg.username.slice(0, 2).toUpperCase() : ''}
+                  {showSender ? (
+                    msg.avatar ? (
+                      <img
+                        src={`${baseUrl}${msg.avatar}`}
+                        alt={msg.username}
+                        style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      msg.username.slice(0, 2).toUpperCase()
+                    )
+                  ) : ''}
                 </div>
               )}
 

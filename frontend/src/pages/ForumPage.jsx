@@ -102,6 +102,11 @@ export default function ForumPage() {
       });
     });
 
+    socket.on('user_updated', (u) => {
+      if (!u || !u.id) return;
+      setForums(prev => prev.map(f => (String(f.last_sender_id) === String(u.id) ? { ...f, last_sender_username: u.username, last_sender_role: u.role } : f)));
+    });
+
     return () => socket.disconnect();
   }, []);
 

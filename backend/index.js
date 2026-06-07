@@ -29,6 +29,7 @@ const io = new Server(server, {
 
 // Pass io to routes that need it
 messageRoutes.setIo(io);
+if (typeof userRoutes.setIo === 'function') userRoutes.setIo(io);
 
 // Helper function to detect mentions (@username or @"full name") in message content
 function extractMentions(content) {

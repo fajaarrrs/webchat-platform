@@ -322,8 +322,9 @@ router.get('/:id/members', authenticate, (req, res) => {
   }
 
   const members = db.prepare(`
-    SELECT u.id, u.username, u.role, fm.joined_at,
-           u.last_seen,
+        SELECT u.id, u.username, u.role, fm.joined_at,
+          u.last_seen,
+          u.avatar_url AS avatar,
            CASE WHEN EXISTS (SELECT 1 FROM presence_devices pd WHERE pd.user_id = u.id AND pd.is_online = 1) THEN 1 ELSE 0 END AS is_online,
            (SELECT label FROM presence_devices WHERE user_id = u.id AND last_closed_at IS NOT NULL ORDER BY last_closed_at DESC LIMIT 1) AS last_closed_device_label
     FROM forum_members fm

@@ -1,15 +1,40 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const { db } = require("../database");
 const { authenticate, requireAdmin } = require("../middleware/auth");
 
 const router = express.Router();
 
+let _io = null;
+function setIo(io) {
+  _io = io;
+}
+module.exports.setIo = setIo;
+
+// Ensure upload dir exists
+const avatarsDir = path.join(__dirname, '..', 'uploads', 'avatars');
+fs.mkdirSync(avatarsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, avatarsDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || '';
+    cb(null, `avatar_user_${req.user ? req.user.id : 'anon'}_${Date.now()}${ext}`);
+  }
+});
+
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
 // GET /api/users — list all users (admin only)
 router.get("/", authenticate, requireAdmin, (req, res) => {
   const users = db
     .prepare(
-      "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
+      "SELECT id, username, email, role, avatar_url AS avatar, created_at FROM users ORDER BY created_at ASC",
     )
     .all();
   res.json(users);
@@ -57,8 +82,11 @@ router.put("/me", authenticate, (req, res) => {
   );
 
   const updated = db
-    .prepare("SELECT id, username, email, role FROM users WHERE id = ?")
+    .prepare("SELECT id, username, email, role, avatar_url AS avatar FROM users WHERE id = ?")
     .get(userId);
+  try {
+    if (_io) _io.emit('user_updated', updated);
+  } catch (err) { console.error('user update emit error:', err); }
   res.json(updated);
 });
 
@@ -100,10 +128,49 @@ router.put("/:id", authenticate, requireAdmin, (req, res) => {
 
   const updated = db
     .prepare(
-      "SELECT id, username, email, role, created_at FROM users WHERE id = ?",
+      "SELECT id, username, email, role, avatar_url AS avatar, created_at FROM users WHERE id = ?",
     )
     .get(userId);
+  try {
+    if (_io) _io.emit('user_updated', updated);
+  } catch (err) { console.error('user update emit error:', err); }
   res.json(updated);
+});
+
+// POST /api/users/me/avatar — upload avatar image
+router.post('/me/avatar', authenticate, upload.single('avatar'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'File avatar tidak ditemukan.' });
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, req.user.id);
+    const updated = db.prepare('SELECT id, username, email, role, avatar_url AS avatar FROM users WHERE id = ?').get(req.user.id);
+    try { if (_io) _io.emit('user_updated', updated); } catch (err) { console.error('avatar upload emit error:', err); }
+    res.json(updated);
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    res.status(500).json({ error: 'Gagal mengunggah avatar.' });
+  }
+});
+
+// DELETE /api/users/me/avatar — remove avatar
+router.delete('/me/avatar', authenticate, (req, res) => {
+  try {
+    const user = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User tidak ditemukan.' });
+    if (user.avatar_url) {
+      // Convert to filesystem path
+      const rel = user.avatar_url.replace(/^\//, ''); // e.g. uploads/avatars/...
+      const filePath = path.join(__dirname, '..', rel);
+      try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+    }
+    db.prepare('UPDATE users SET avatar_url = NULL WHERE id = ?').run(req.user.id);
+    const updated = db.prepare('SELECT id, username, email, role, avatar_url AS avatar FROM users WHERE id = ?').get(req.user.id);
+    try { if (_io) _io.emit('user_updated', updated); } catch (err) { console.error('avatar delete emit error:', err); }
+    res.json(updated);
+  } catch (err) {
+    console.error('Avatar delete error:', err);
+    res.status(500).json({ error: 'Gagal menghapus avatar.' });
+  }
 });
 
 // DELETE /api/users/:id — admin deletes user (cannot delete another admin)

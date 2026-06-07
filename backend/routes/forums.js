@@ -390,6 +390,9 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
 
       // Saat forum dihapus, semua anggota forum ini otomatis dikeluarkan.
       db.prepare('DELETE FROM forum_members WHERE forum_id = ?').run(id);
+      // Remove message reactions and reminders for messages in this forum to avoid FK conflicts
+      db.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE forum_id = ?)').run(id);
+      db.prepare('DELETE FROM reminders WHERE message_id IN (SELECT id FROM messages WHERE forum_id = ?)').run(id);
       db.prepare('DELETE FROM messages WHERE forum_id = ?').run(id);
       db.prepare('DELETE FROM forums WHERE id = ?').run(id);
     });
@@ -397,6 +400,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     removeForumTx(forumId);
     return res.json({ message: 'Forum berhasil dihapus. Semua anggota otomatis dikeluarkan.' });
   } catch (error) {
+    console.error('Failed to delete forum:', error && error.message ? error.message : error);
     return res.status(500).json({ error: 'Gagal menghapus forum. Silakan coba lagi.' });
   }
 });

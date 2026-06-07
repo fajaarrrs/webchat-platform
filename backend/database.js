@@ -43,6 +43,15 @@ function initDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS forum_reads (
+      forum_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      last_read DATETIME,
+      PRIMARY KEY (forum_id, user_id),
+      FOREIGN KEY (forum_id) REFERENCES forums(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       forum_id INTEGER NOT NULL,

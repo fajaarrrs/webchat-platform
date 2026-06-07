@@ -101,41 +101,67 @@ export default function MessageList({
   return (
     <div ref={containerRef} className="flex flex-1 flex-col gap-1 overflow-y-auto px-5 py-4" style={{ position: 'relative', zIndex: 0 }}>
       {pinnedMessages.length > 0 && (
-        <div style={{ padding: '7px 20px', background: '#EFF6FF', borderBottom: '1px solid #DBEAFE', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1D4ED8' }}>
-          <Pin size={12} />
-          <span style={{ fontWeight: 600 }}>Pinned:</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-            {getPinnedPreviewText(latestPinnedMessage)}
-          </span>
+        <div style={{ position: 'sticky', top: 0, zIndex: 120, padding: '8px 12px', background: '#F8FAFF', borderBottom: '1px solid #E6EEF9', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#1D4ED8' }}>
+          <Pin size={14} />
+          <span style={{ fontWeight: 700, marginRight: 6 }}>Pinned</span>
+
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 0', flex: 1 }}>
+            {pinnedMessages.map((pm) => (
+              <div key={pm.id} style={{ minWidth: 140, maxWidth: 220, flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 12, background: '#ffffff', border: '1px solid rgba(15,23,42,0.04)', boxShadow: '0 4px 10px rgba(2,6,23,0.04)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pm.username || '—'}</div>
+                  <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPinnedPreviewText(pm)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginLeft: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleGoToMessage(pm)}
+                    title="Pergi ke pesan"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #EEF2FF', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1D4ED8' }}
+                  >
+                    <Link2 size={14} />
+                  </button>
+                  {canPin() && (
+                    <button
+                      onClick={() => handlePin(pm)}
+                      title={pm.is_pinned ? 'Lepas pin' : 'Pin'}
+                      style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #FECACA', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}
+                    >
+                      <PinOff size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div data-pinnedmenu="true" style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => setShowPinnedMenu((v) => !v)}
               title="Menu pesan pin"
-              style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #BFDBFE', background: '#fff', cursor: 'pointer', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E6EEF9', background: '#fff', cursor: 'pointer', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <ChevronDown size={14} />
             </button>
 
-            {showPinnedMenu && latestPinnedMessage && (
-              <div style={{ position: 'absolute', top: 30, right: 0, width: 178, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.15)', padding: 6, zIndex: 210 }}>
-                <button
-                  onClick={() => handleGoToMessage(latestPinnedMessage)}
-                  style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#374151', textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#F9FAFB'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                >
-                  <Link2 size={14} /> Pergi ke pesan
-                </button>
-                {canPin() && (
-                  <button
-                    onClick={() => handlePin(latestPinnedMessage)}
-                    style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7, fontSize: 13, color: '#DC2626', textAlign: 'left' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                  >
-                    <PinOff size={14} /> Lepas pin
-                  </button>
-                )}
+            {showPinnedMenu && (
+              <div style={{ position: 'absolute', top: 40, right: 0, width: 320, maxHeight: 360, overflow: 'auto', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 6, zIndex: 210 }}>
+                {pinnedMessages.map((pm) => (
+                  <div key={pm.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' }}>
+                    <div style={{ flex: 1, overflow: 'hidden' }} onClick={() => handleGoToMessage(pm)}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pm.username || '—'}</div>
+                      <div style={{ fontSize: 13, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPinnedPreviewText(pm)}</div>
+                    </div>
+                    {canPin() && (
+                      <button
+                        onClick={() => handlePin(pm)}
+                        style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: '#DC2626' }}
+                        title="Lepas pin"
+                      >
+                        <PinOff size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

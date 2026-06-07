@@ -205,6 +205,17 @@ export default function RegisterPage() {
           background: #fff;
         }
 
+        /* Hide native browser password reveal/clear icons to avoid double-eye */
+        .field-input::-ms-reveal,
+        .field-input::-ms-clear {
+          display: none;
+        }
+
+        .field-input::-webkit-textfield-decoration-container,
+        .field-input::-webkit-credentials-auto-fill-button {
+          display: none !important;
+        }
+
         .pass-toggle {
           position: absolute;
           top: 50%;

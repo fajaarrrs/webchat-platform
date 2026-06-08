@@ -604,6 +604,29 @@ try {
   console.error('[REMINDER] Failed to start worker:', err && err.message ? err.message : err);
 }
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// Start server with retry logic to avoid crashing nodemon on EADDRINUSE
+const tryListen = (startPort, attempts = 5) => {
+  const onError = (err) => {
+    if (err && err.code === 'EADDRINUSE' && attempts > 0) {
+      const nextPort = startPort + 1;
+      console.warn(`[SERVER] Port ${startPort} in use, trying ${nextPort} (attempts left: ${attempts - 1})`);
+      // remove this listener before retrying to avoid duplicate handlers
+      server.removeListener('error', onError);
+      setTimeout(() => tryListen(nextPort, attempts - 1), 200);
+      return;
+    }
+
+    console.error('[SERVER] Failed to start server:', err && err.message ? err.message : err);
+    // Do not throw unhandled; exit gracefully so nodemon can restart on changes
+    process.exit(1);
+  };
+
+  server.once('error', onError);
+  server.listen(startPort, () => {
+    // remove error handler once listening succeeded
+    server.removeListener('error', onError);
+    console.log(`🚀 Server running on http://localhost:${startPort}`);
+  });
+};
+
+tryListen(PORT, 8);

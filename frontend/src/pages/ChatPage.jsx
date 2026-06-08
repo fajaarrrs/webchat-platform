@@ -727,8 +727,16 @@ export default function ChatPage() {
 
   const handleDelete = msg => {
     messageInputRef.current?.blur();
-    if (!window.confirm('Hapus pesan ini?')) return;
-    socketRef.current?.emit('delete_message', { messageId: msg.id, forumId: activeForumId });
+    // If the message is already marked deleted by admin/server, allow user to
+    // remove the bubble locally (client-side) without emitting another delete.
+    const alreadyDeleted = !!msg.is_deleted_by_admin || !!msg.is_deleted;
+    if (!alreadyDeleted) {
+      if (!window.confirm('Hapus pesan ini?')) return;
+      socketRef.current?.emit('delete_message', { messageId: msg.id, forumId: activeForumId });
+    } else {
+      if (!window.confirm('Hapus bubble pesan ini dari tampilan?')) return;
+      setMessages(prev => prev.filter(m => m.id !== msg.id));
+    }
     setOpenDropdownId(null);
     setMobileMenu(null);
   };
@@ -1267,11 +1275,15 @@ try {
     if (!msg.reply_to_id) return null;
 
     const repliedMessage = messageLookup[msg.reply_to_id];
-    const replyUsername = msg.reply_username || repliedMessage?.username || 'Unknown';
-    const replyFileName = msg.reply_file_name || repliedMessage?.file_name || '';
-    const replyFileType = msg.reply_file_type || repliedMessage?.file_type || '';
-    const replyFileUrl = msg.reply_file_url || repliedMessage?.file_url || '';
-    const replyText = msg.reply_content?.trim() || repliedMessage?.content?.trim() || '';
+    // Consider messages deleted by admin or explicitly marked deleted as non-existent
+    const originalAvailable = !!repliedMessage && !repliedMessage.is_deleted_by_admin && !repliedMessage.is_deleted;
+
+    // Prefer live original when available, otherwise avoid showing cached snapshot content
+    const replyUsername = originalAvailable ? (repliedMessage?.username || msg.reply_username || 'Unknown') : (msg.reply_username ? msg.reply_username : 'Unknown');
+    const replyFileName = originalAvailable ? (repliedMessage?.file_name || msg.reply_file_name || '') : '';
+    const replyFileType = originalAvailable ? (repliedMessage?.file_type || msg.reply_file_type || '') : '';
+    const replyFileUrl = originalAvailable ? (repliedMessage?.file_url || msg.reply_file_url || '') : '';
+    const replyText = originalAvailable ? (repliedMessage?.content?.trim() || msg.reply_content?.trim() || '') : '';
     const isReplyImage = !!replyFileName && isImageAttachment(replyFileName, replyFileType);
 
     let content = replyText;
@@ -1280,8 +1292,10 @@ try {
         ? `Image: ${getFileLabel(replyFileName, replyFileType)}`
         : `File: ${getFileLabel(replyFileName, replyFileType)}`;
     }
-    if (!content) {
-      content = 'Pesan tidak ditemukan';
+
+    // If the original is not available (deleted), show a clear deleted placeholder
+    if (!originalAvailable) {
+      content = 'Pesan ini telah dihapus';
     }
 
     return {

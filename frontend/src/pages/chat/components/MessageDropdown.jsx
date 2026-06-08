@@ -67,28 +67,43 @@ function MessageDropdownInner({
         </>
       )}
 
-      {[
-        { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
-        ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
-        ...((msg.reacting_users || []).some((u) => u.userId === user?.id) ? [] : [{ icon: Smile, label: 'Tambah Reaksi', onClick: () => { openReactionPickerAtMessage(msg.id, 'compact'); closeDropdowns(); }, color: '#374151' }]),
-        { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
-        ...(canPin() ? [{
-          icon: msg.is_pinned ? PinOff : Pin,
-          label: msg.is_pinned ? 'Unpin' : 'Pin',
-          onClick: () => handlePin(msg),
-          color: '#374151',
-        }] : []),
-        ...(canDelete(msg) ? [{ icon: Trash2, label: 'Delete', onClick: () => handleDelete(msg), color: '#DC2626' }] : []),
-      ].map(({ icon: Icon, label, onClick, color }) => (
-        <button
-          key={label}
-          onClick={onClick}
-          className="flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] transition-all duration-200 hover:bg-slate-50"
-          style={{ color }}
-        >
-          <Icon size={14} /> {label}
-        </button>
-      ))}
+      {(() => {
+        const isDeleted = !!msg.is_deleted_by_admin || !!msg.is_deleted;
+        if (isDeleted) {
+          return (
+            <button
+              onClick={() => handleDelete(msg)}
+              className="flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] transition-all duration-200 hover:bg-slate-50"
+              style={{ color: '#DC2626' }}
+            >
+              <Trash2 size={14} /> Hapus bubble
+            </button>
+          );
+        }
+
+        return [
+          { icon: Copy, label: 'Salin pesan', onClick: () => handleCopyMessage(msg), color: '#374151' },
+          ...(canEdit(msg) ? [{ icon: Pencil, label: 'Edit', onClick: () => handleEditMessage(msg), color: '#374151' }] : []),
+          ...((msg.reacting_users || []).some((u) => u.userId === user?.id) ? [] : [{ icon: Smile, label: 'Tambah Reaksi', onClick: () => { openReactionPickerAtMessage(msg.id, 'compact'); closeDropdowns(); }, color: '#374151' }]),
+          { icon: Reply, label: 'Reply', onClick: () => handleReply(msg), color: '#374151' },
+          ...(canPin() ? [{
+            icon: msg.is_pinned ? PinOff : Pin,
+            label: msg.is_pinned ? 'Unpin' : 'Pin',
+            onClick: () => handlePin(msg),
+            color: '#374151',
+          }] : []),
+          ...(canDelete(msg) ? [{ icon: Trash2, label: 'Delete', onClick: () => handleDelete(msg), color: '#DC2626' }] : []),
+        ].map(({ icon: Icon, label, onClick, color }) => (
+          <button
+            key={label}
+            onClick={onClick}
+            className="flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] transition-all duration-200 hover:bg-slate-50"
+            style={{ color }}
+          >
+            <Icon size={14} /> {label}
+          </button>
+        ));
+      })()}
     </div>
   );
 }
